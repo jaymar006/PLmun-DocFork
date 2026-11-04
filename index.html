@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PLMun Portal · Document Request System</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#app">Skip to content</a>
+<header class="glass-panel top" id="nav"></header>
+<main id="app" tabindex="-1"></main>
+
+<!-- Simulated Gmail invitation modal -->
+<dialog id="mail" aria-labelledby="mailTitle">
+  <h2 id="mailTitle">Simulated Gmail inbox</h2>
+  <div id="mailBody"></div>
+  <div class="row"><button class="btn btn-ghost" type="button" data-act="close">Close</button></div>
+</dialog>
+
+<div id="toasts" aria-live="polite"></div>
+<script src="app.js"></script>
+</body>
+</html>
