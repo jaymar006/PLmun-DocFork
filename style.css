@@ -81,7 +81,7 @@
   --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.6), 0 8px 10px -6px rgb(0 0 0 / 0.5);
 }
 
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; background: hsl(var(--background)); }
 
 body {
   min-height: 100vh;
@@ -92,8 +92,31 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   color: hsl(var(--foreground));
-  background: hsl(var(--background));
+  background: transparent;
   transition: background-color 0.2s ease, color 0.2s ease;
+  position: relative;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: url('logo.png') center / 42vmin no-repeat;
+  opacity: 0.08;
+  pointer-events: none;
+  z-index: -1;
+}
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(circle at 22% 18%, hsl(161 64% 45% / 0.16), transparent 52%),
+    radial-gradient(circle at 78% 82%, hsl(43 96% 56% / 0.14), transparent 52%),
+    radial-gradient(hsl(var(--muted-foreground) / 0.16) 1px, transparent 1px);
+  background-size: auto, auto, 22px 22px;
+  background-position: center, center, 0 0;
+  pointer-events: none;
+  z-index: -2;
 }
 
 ::selection { background: hsl(var(--primary) / 0.2); }
@@ -902,7 +925,12 @@ dialog::backdrop {
 }
 dialog[open] { animation: dialog-in 0.16s ease-out; }
 body:has(dialog[open]) { overflow: hidden; }
-.dialog-wide { width: min(46rem, calc(100vw - 2rem)); max-height: 90vh; overflow-y: auto; }
+.profile-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
 
 .req-overview-grid {
   display: grid;
@@ -2186,6 +2214,7 @@ input[type="date"] { color-scheme: light; }
 }
 
 @media (max-width: 640px) {
+  .profile-fields { grid-template-columns: minmax(0, 1fr); }
   .top { padding-inline: 1rem; }
   .brand span { display: none; }
   .brand b { font-size: 0.8125rem; }

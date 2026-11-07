@@ -37,6 +37,7 @@ const ICONS = {
   eye: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
   eyeOff: '<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/>',
   ban: '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   arrowLeft: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
   graduationCap: '<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>',
   phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z"/>',
@@ -331,6 +332,7 @@ const PROGRAMS = [
 const PROGRAM_LIST = PROGRAMS.flatMap(g => g.programs);
 const DEFAULT_PROGRAM = PROGRAM_LIST[0];
 const YEAR_LEVELS = ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', 'Graduated / Alumnus'];
+const PURPOSES = ['Scholarship', 'Employment', 'Enrollment', 'Abroad application', 'Personal records', 'Transfer / Shifting', 'Board / Licensure exam', 'Other'];
 const collegeOf = p => (PROGRAMS.find(g => g.programs.includes(p)) || PROGRAMS[0]).college;
 const WARNING_VERSION = 1;
 const OTHER_DOC = 'Other Certificate (Specify)';
@@ -824,7 +826,7 @@ const Views = {
         </div>
         <div class="wiz-grid wiz-grid-2">
           <div class="field"><label for="wizCopies">Copies</label><input id="wizCopies" type="number" min="1" max="5" value="${w.copies}"></div>
-          <div class="field"><label for="wizPurpose">Purpose</label><input id="wizPurpose" maxlength="120" value="${esc(w.purpose)}" placeholder="e.g. Scholarship application"></div>
+          <div class="field"><label for="wizPurpose">Purpose</label><select id="wizPurpose">${PURPOSES.map(p => `<option${p === w.purpose ? ' selected' : ''}>${esc(p)}</option>`).join('')}</select></div>
         </div>
         ${w.doc === OTHER_DOC ? `<div class="field"><label for="wizOther">Specify certificate</label><input id="wizOther" maxlength="80" value="${esc(w.other)}" placeholder="e.g. Certificate of Good Moral Character"></div>` : ''}
         <div class="wiz-estimate">Estimated fee <strong>₱${(meta.fee * w.copies).toFixed(2)}</strong></div>
@@ -1039,7 +1041,7 @@ const UI = {
         year: YEAR_LEVELS.includes(u.yearLevel) ? u.yearLevel : '1st Year',
         doc: (this.state.preselect && Store.db.docs.includes(this.state.preselect)) ? this.state.preselect : Store.db.docs[0],
         copies: 1,
-        purpose: '',
+        purpose: PURPOSES[0],
         other: '',
         view: new Date(today.getFullYear(), today.getMonth(), 1),
         date: '',
@@ -1120,6 +1122,7 @@ const UI = {
     }
     $('#nav').innerHTML = `<div class="brand"><img class="seal" src="logo.png" alt="PLMun seal"><div><b>PLMun Portal</b><span>Document Request System</span></div></div>
       <div class="actions"><span class="badge s-role">${role[u.role]}</span>
+        <button class="btn btn-ghost btn-icon" type="button" aria-label="Notifications" title="Notifications">${icon('bell')}</button>
         <button class="btn btn-ghost btn-icon" data-act="theme" aria-label="Switch to ${dark ? 'light' : 'dark'} mode">${icon(dark ? 'sun' : 'moon')}</button>
         ${u.role === 'student'
         ? `<button class="nav-user nav-user-btn" type="button" data-act="editProfile" title="Edit student profile">
@@ -1177,11 +1180,13 @@ const Profile = {
     $('#profileBody').innerHTML = `<div class="profile-dialog-head">
       <span class="avatar avatar-lg" style="--avatar-hue:${hueOf(u.name)}" aria-hidden="true">${esc(initials(u.name))}</span>
       <div><strong>${esc(u.name)}</strong><small>Student No. ${esc(u.sno)}</small></div></div>
-      <div class="field"><label for="program">Course / Program</label>
-        <select id="program" name="program">${opts}</select>
-        <p class="field-hint" id="collegeHint">${esc(collegeOf(u.program))}</p></div>
-      <div class="field"><label for="yearLevel">Year level</label>
-        <select id="yearLevel" name="yearLevel">${YEAR_LEVELS.map(y => `<option${y === u.yearLevel ? ' selected' : ''}>${esc(y)}</option>`).join('')}</select></div>
+      <div class="profile-fields">
+        <div class="field"><label for="program">Course / Program</label>
+          <select id="program" name="program">${opts}</select>
+          <p class="field-hint" id="collegeHint">${esc(collegeOf(u.program))}</p></div>
+        <div class="field"><label for="yearLevel">Year level</label>
+          <select id="yearLevel" name="yearLevel">${YEAR_LEVELS.map(y => `<option${y === u.yearLevel ? ' selected' : ''}>${esc(y)}</option>`).join('')}</select></div>
+      </div>
       <p class="form-hint">This academic affiliation is attached to your document requests.</p>`;
     $('#profile').showModal();
   }
