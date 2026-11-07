@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Request, track and claim PLMun registrar documents online â€” certificates, credentials and diplomas with scheduled counter pickup.">
+  <title>PLMun Registrar Â· Document Request System</title>
+  <link rel="icon" href="logo.png">
+  <script>
+    try { document.documentElement.dataset.theme = localStorage.getItem('plmun-theme') || 'dark'; }
+    catch (e) { document.documentElement.dataset.theme = 'dark'; }
+  </script>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div id="printArea" class="print-only" aria-hidden="true"></div>
+  <a class="skip" href="#app">Skip to content</a>
+  <header class="top" id="nav"></header>
+  <main id="app" tabindex="-1"></main>
+
+  <!-- Simulated Gmail invitation modal -->
+  <dialog id="mail" aria-labelledby="mailTitle">
+    <div class="dialog-header">
+      <h2 id="mailTitle">Simulated Gmail inbox</h2>
+      <p class="dialog-desc">Demo only â€” no real email is sent.</p>
+    </div>
+    <div id="mailBody"></div>
+    <div class="dialog-footer">
+      <button class="btn btn-outline" type="button" data-act="close">Close</button>
+    </div>
+  </dialog>
+
+  <!-- Pickup scheduling calendar -->
+  <dialog id="sched" class="dialog-wide" aria-labelledby="schedTitle">
+    <div class="dialog-header">
+      <h2 id="schedTitle">Schedule pickup</h2>
+      <p class="dialog-desc" id="schedSubtitle"></p>
+    </div>
+    <div id="schedBody"></div>
+    <div class="dialog-footer">
+      <button class="btn btn-outline" type="button" data-act="close">Cancel</button>
+      <button class="btn btn-primary" type="button" id="schedConfirm" data-act="confirmPickup" disabled>Confirm
+        pickup</button>
+    </div>
+  </dialog>
+
+  <!-- Student profile / program editor -->
+  <dialog id="profile" aria-labelledby="profileTitle">
+    <div class="dialog-header">
+      <h2 id="profileTitle">Student profile</h2>
+      <p class="dialog-desc">Update your academic affiliation. This appears on your document requests.</p>
+    </div>
+    <div id="profileBody"></div>
+    <div class="dialog-footer">
+      <button class="btn btn-outline" type="button" data-act="close">Cancel</button>
+      <button class="btn btn-primary" type="button" id="profileSave" data-act="saveProfile">Save changes</button>
+    </div>
+  </dialog>
+
+  <!-- Official Receipt & QR code dialog -->
+  <dialog id="receipt" class="dialog-wide dialog-receipt" aria-labelledby="receiptTitle">
+    <div class="dialog-header no-print">
+      <h2 id="receiptTitle">Official Receipt &amp; Verification Slip</h2>
+      <p class="dialog-desc">University Registrar · Document Request &amp; Billing Statement</p>
+    </div>
+    <div id="receiptBody"></div>
+    <div class="dialog-footer no-print">
+      <button class="btn btn-outline" type="button" data-act="close">Close</button>
+      <button class="btn btn-primary" type="button" id="receiptPrintBtn" data-act="printReceipt">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect width="12" height="8" x="6" y="14"></rect></svg>
+        Print Official Receipt
+      </button>
+    </div>
+  </dialog>
+
+  <!-- Request Overview Details Modal (Registrar & Admin) -->
+  <dialog id="reqDetails" class="dialog-wide" aria-labelledby="reqDetailsTitle">
+    <div class="dialog-header">
+      <div class="dialog-header-row">
+        <div>
+          <p class="eyebrow">Registrar Fulfillment</p>
+          <h2 id="reqDetailsTitle">Request Overview Details</h2>
+        </div>
+        <div id="reqDetailsBadge"></div>
+      </div>
+      <p class="dialog-desc">Complete applicant profile, academic affiliation, and document processing information.</p>
+    </div>
+    <div id="reqDetailsBody"></div>
+    <div class="dialog-footer" id="reqDetailsFooter">
+      <button class="btn btn-outline" type="button" data-act="close">Close</button>
+    </div>
+  </dialog>
+
+  <!-- Mandatory official-warning acknowledgement (students) -->
+  <dialog id="warning" class="dialog-wide" aria-labelledby="warningTitle">
+    <div class="dialog-header">
+      <p class="eyebrow">Registrar Â· Student module</p>
+      <h2 id="warningTitle">Official Warning to All Students and Applicants</h2>
+      <p class="dialog-desc">PLEASE READ CAREFULLY BEFORE PROCEEDING WITH YOUR DOCUMENT REQUEST.</p>
+    </div>
+    <div class="warning-body">
+      <p>Submitting false information, making unauthorized document requests, or claiming documents without proper
+        permission is a serious violation of school policies and may have legal consequences.</p>
+      <h3>1. False Information and Fraudulent Applications</h3>
+      <p>Providing false personal information, using another student's identity, or submitting a document request
+        without the student's knowledge and authorization is strictly prohibited. Any applicant found submitting
+        fraudulent or misleading information may face disciplinary action in accordance with applicable PLMUN policies
+        and may be subject to legal action when warranted.</p>
+      <h3>2. Unauthorized Document Requests</h3>
+      <p>Students must only submit requests for their own documents or for another person when they have proper
+        authorization. Requesting documents using another person's personal information without their knowledge or
+        consent is strictly prohibited.</p>
+      <h3>3. Protection of Personal Information</h3>
+      <p>All information submitted through this portal must be accurate and used only for legitimate academic or
+        school-related purposes. Unauthorized access, misuse, or disclosure of another student's personal information
+        is strictly prohibited and may violate applicable data privacy laws.</p>
+      <p>By proceeding with this application, you confirm that you understand and agree to follow the school's document
+        request and collection procedures. PLMUN reserves the right to verify submitted information, reject suspicious
+        or unauthorized requests, and refer violations to the appropriate school authorities.</p>
+      <div class="ack-box">
+        <h3>Acknowledgment of Official Warning</h3>
+        <label class="check" for="warnAck">
+          <input type="checkbox" id="warnAck">
+          <span>I have read and understood the Official Warning. I certify that I am submitting this request for a
+            legitimate purpose and that the information I provide is true and accurate. I consent to the processing of
+            my personal data in accordance with the Data Privacy Act of 2012.</span>
+        </label>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button class="btn btn-outline" type="button" id="warnDecline" data-act="declineWarning">Decline &amp; sign out</button>
+      <button class="btn btn-primary" type="button" id="warnAgree" data-act="ackWarning">I understand and agree</button>
+    </div>
+  </dialog>
+
+  <div id="toasts" aria-live="polite"></div>
+  <script src="app.js"></script>
+  <script src="_smoke.js"></script>
+</body>
+
+</html>
