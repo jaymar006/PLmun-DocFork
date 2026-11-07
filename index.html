@@ -3,20 +3,43 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="PLMun Document Request System — request, track and receive your academic records.">
 <title>PLMun Portal · Document Request System</title>
 <link rel="icon" href="logo.png">
+<script>
+  try { document.documentElement.dataset.theme = localStorage.getItem('plmun-theme') || 'dark'; }
+  catch (e) { document.documentElement.dataset.theme = 'dark'; }
+</script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <a class="skip" href="#app">Skip to content</a>
-<header class="glass-panel top" id="nav"></header>
+<header class="top" id="nav"></header>
 <main id="app" tabindex="-1"></main>
 
 <!-- Simulated Gmail invitation modal -->
 <dialog id="mail" aria-labelledby="mailTitle">
-  <h2 id="mailTitle">Simulated Gmail inbox</h2>
+  <div class="dialog-header">
+    <h2 id="mailTitle">Simulated Gmail inbox</h2>
+    <p class="dialog-desc">Demo only — no real email is sent.</p>
+  </div>
   <div id="mailBody"></div>
-  <div class="row"><button class="btn btn-ghost" type="button" data-act="close">Close</button></div>
+  <div class="dialog-footer">
+    <button class="btn btn-outline" type="button" data-act="close">Close</button>
+  </div>
+</dialog>
+
+<!-- Pickup scheduling calendar -->
+<dialog id="sched" class="dialog-wide" aria-labelledby="schedTitle">
+  <div class="dialog-header">
+    <h2 id="schedTitle">Schedule pickup</h2>
+    <p class="dialog-desc" id="schedSubtitle"></p>
+  </div>
+  <div id="schedBody"></div>
+  <div class="dialog-footer">
+    <button class="btn btn-outline" type="button" data-act="close">Cancel</button>
+    <button class="btn btn-primary" type="button" id="schedConfirm" data-act="confirmPickup" disabled>Confirm pickup</button>
+  </div>
 </dialog>
 
 <div id="toasts" aria-live="polite"></div>
