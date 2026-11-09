@@ -93,6 +93,23 @@
     </div>
   </dialog>
 
+  <!-- Final submission confirmation (students) -->
+  <dialog id="submitConfirm" aria-labelledby="submitConfirmTitle">
+    <div class="dialog-header">
+      <p class="eyebrow">Final step</p>
+      <h2 id="submitConfirmTitle">Submit this document request?</h2>
+      <p class="dialog-desc">Please review the summary below before confirming.</p>
+    </div>
+    <div id="submitConfirmBody"></div>
+    <div class="dialog-footer">
+      <button class="btn btn-outline" type="button" data-act="close">Cancel</button>
+      <button class="btn btn-primary" type="button" data-act="confirmSubmit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path></svg>
+        Confirm &amp; submit
+      </button>
+    </div>
+  </dialog>
+
   <!-- Mandatory official-warning acknowledgement (students) -->
   <dialog id="warning" class="dialog-wide" aria-labelledby="warningTitle">
     <div class="dialog-header">

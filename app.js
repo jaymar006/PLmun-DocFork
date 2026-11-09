@@ -10,6 +10,16 @@ const slug = s => String(s).toLowerCase().replace(/[^a-z]+/g, '-');
 const badge = s => `<span class="badge s-${slug(s)}">${esc(s)}</span>`;
 const initials = n => String(n || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
 const hueOf = n => { let h = 0; for (const ch of String(n || '')) h = (h * 31 + ch.codePointAt(0)) % 360; return h; };
+const normalizeMobile = v => {
+  let d = String(v || '').replace(/\D/g, '');
+  if (d.startsWith('63') && d.length === 12) d = '0' + d.slice(2);
+  if (d.length === 10 && d.startsWith('9')) d = '0' + d;
+  return /^09\d{9}$/.test(d) ? d : '';
+};
+const formatMobile = v => {
+  const d = normalizeMobile(v);
+  return d ? `${d.slice(0, 4)} ${d.slice(4, 7)} ${d.slice(7)}` : '';
+};
 
 /* Lucide-style inline icons — keeps the UI dependency-free */
 const ICONS = {
@@ -48,7 +58,11 @@ const ICONS = {
   x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
   alertCircle: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
-  printer: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/>'
+  printer: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/>',
+  creditCard: '<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>',
+  banknote: '<rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01"/><path d="M18 12h.01"/>',
+  clipboardCheck: '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>'
 };
 const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name] || ''}</svg>`;
 
@@ -333,17 +347,32 @@ const PROGRAM_LIST = PROGRAMS.flatMap(g => g.programs);
 const DEFAULT_PROGRAM = PROGRAM_LIST[0];
 const YEAR_LEVELS = ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', 'Graduated / Alumnus'];
 const PURPOSES = ['Scholarship', 'Employment', 'Enrollment', 'Abroad application', 'Personal records', 'Transfer / Shifting', 'Board / Licensure exam', 'Other'];
+const RELATIONSHIPS = ['Parent', 'Guardian', 'Sibling', 'Relative', 'Spouse', 'Friend', 'Other'];
+const ID_TYPES = ['Philippine Passport', "Driver's License", 'PhilSys / National ID', 'UMID', 'PRC ID', 'Postal ID', "Voter's ID", 'Company / School ID', 'Other government-issued ID'];
+const PAYMENT_METHODS = [
+  { key: 'cashier', label: 'Cashier', full: 'Cashier (pay in person)', desc: "Settle the assessed fee at the University Cashier's Office before claiming your document." },
+  { key: 'online', label: 'Online', full: 'Online payment', desc: 'Pay through the online payment channel after submitting your request and keep the reference number.' }
+];
+const paymentMeta = key => PAYMENT_METHODS.find(p => p.key === key) || PAYMENT_METHODS[0];
 const collegeOf = p => (PROGRAMS.find(g => g.programs.includes(p)) || PROGRAMS[0]).college;
 const WARNING_VERSION = 1;
 const OTHER_DOC = 'Other Certificate (Specify)';
 const WIZ_STEPS = [
-  { n: 1, label: 'Step 01', desc: 'Policy & Privacy' },
-  { n: 2, label: 'Step 02', desc: 'Academic Identity' },
-  { n: 3, label: 'Step 03', desc: 'Document & Purpose' },
-  { n: 4, label: 'Step 04', desc: 'Slot Reservation' }
+  { n: 1, label: 'Step 01', desc: 'Policy & Privacy', hint: 'Read and acknowledge the official warning before submitting a request.' },
+  { n: 2, label: 'Step 02', desc: 'Academic Identity', hint: 'Verify that your enrolled degree program and contact details match your official Registrar files.' },
+  { n: 3, label: 'Step 03', desc: 'Document & Copies', hint: 'Choose the document, number of copies, and who will claim it at the Registrar Releasing Window.' },
+  { n: 4, label: 'Step 04', desc: 'Review & Submit', hint: 'Review your details, choose a payment method, and submit. Submitted requests are final.' }
 ];
 const isAcked = u => !!(u && u.warningAck && u.warningAck.version === WARNING_VERSION);
 const FLOW = ['Pending', 'Processing', 'Ready for Pickup', 'Released'];
+const REG_TABS = [
+  { key: 'pending', label: 'Submitted', statuses: ['Pending'] },
+  { key: 'approved', label: 'Approved', statuses: ['Processing'] },
+  { key: 'ready', label: 'Ready for pickup', statuses: ['Ready for Pickup'] },
+  { key: 'released', label: 'Released', statuses: ['Released'] },
+  { key: 'rejected', label: 'Rejected', statuses: ['Rejected'] },
+  { key: 'all', label: 'All requests', statuses: null }
+];
 const PERMS = {
   student: ['request:create', 'request:own'],
   registrar: ['request:meta', 'request:advance'],
@@ -384,6 +413,7 @@ const Store = {
     this.db.users.filter(u => u.role === 'student').forEach(u => {
       if (!PROGRAM_LIST.includes(u.program)) { u.program = DEFAULT_PROGRAM; changed = true; }
       if (!YEAR_LEVELS.includes(u.yearLevel)) { u.yearLevel = '1st Year'; changed = true; }
+      if (typeof u.mobile !== 'string') { u.mobile = ''; changed = true; }
     });
     // Ensure all requests have a trackingCode
     this.db.requests = Array.isArray(this.db.requests) ? this.db.requests : [];
@@ -404,14 +434,14 @@ const Store = {
       users: [
         { id: 'u1', role: 'admin', name: 'PLMun Admin', email: 'admin@plmun.edu.ph', pw: 'admin123', status: 'active' },
         { id: 'u2', role: 'registrar', name: 'Maria Santos', email: 'maria.registrar@gmail.com', pw: 'registrar123', status: 'active' },
-        { id: 'u3', role: 'student', name: 'Juan Dela Cruz', email: 'student@plmun.edu.ph', pw: 'student123', status: 'active', sno: '2022-00123', program: 'Bachelor of Science in Information Technology', yearLevel: '3rd Year' },
-        { id: 'u4', role: 'student', name: 'Ana Reyes', email: 'ana@plmun.edu.ph', pw: 'student123', status: 'active', sno: '2021-00456', program: 'Bachelor of Science in Accountancy', yearLevel: '4th Year' }
+        { id: 'u3', role: 'student', name: 'Juan Dela Cruz', email: 'student@plmun.edu.ph', pw: 'student123', status: 'active', sno: '2022-00123', program: 'Bachelor of Science in Information Technology', yearLevel: '3rd Year', mobile: '0917 555 0123' },
+        { id: 'u4', role: 'student', name: 'Ana Reyes', email: 'ana@plmun.edu.ph', pw: 'student123', status: 'active', sno: '2021-00456', program: 'Bachelor of Science in Accountancy', yearLevel: '4th Year', mobile: '0918 555 0456' }
       ],
       requests: [
-        { id: 'REQ-1001', trackingCode: 'PLM-TRK-2026-1001', owner: 'u3', type: 'Certificate of Grades', purpose: 'Scholarship', copies: 1, status: 'Released', date: ago(14) },
-        { id: 'REQ-1002', trackingCode: 'PLM-TRK-2026-1002', owner: 'u4', type: 'Certificate of Enrollment', purpose: 'Employment', copies: 2, status: 'Processing', date: ago(5) },
-        { id: 'REQ-1003', trackingCode: 'PLM-TRK-2026-1003', owner: 'u3', type: 'Certificate of Matriculation', purpose: 'Enrollment', copies: 1, status: 'Ready for Pickup', date: ago(3) },
-        { id: 'REQ-1004', trackingCode: 'PLM-TRK-2026-1004', owner: 'u4', type: 'Diploma', purpose: 'Abroad application', copies: 1, status: 'Pending', date: ago(1) }
+        { id: 'REQ-1001', trackingCode: 'PLM-TRK-2026-1001', owner: 'u3', type: 'Certificate of Grades', purpose: 'Scholarship', copies: 1, payment: 'cashier', status: 'Released', date: ago(14) },
+        { id: 'REQ-1002', trackingCode: 'PLM-TRK-2026-1002', owner: 'u4', type: 'Certificate of Enrollment', purpose: 'Employment', copies: 2, payment: 'online', status: 'Processing', date: ago(5) },
+        { id: 'REQ-1003', trackingCode: 'PLM-TRK-2026-1003', owner: 'u3', type: 'Certificate of Matriculation', purpose: 'Enrollment', copies: 1, payment: 'cashier', status: 'Ready for Pickup', date: ago(3), pickup: { date: dateKey(addDays(new Date(), 3)), time: '10:30' }, receiver: 'rep', claimant: { name: 'Maria Dela Cruz', relation: 'Parent', idType: "Driver's License", letter: true } },
+        { id: 'REQ-1004', trackingCode: 'PLM-TRK-2026-1004', owner: 'u4', type: 'Diploma', purpose: 'Abroad application', copies: 1, payment: 'online', status: 'Pending', date: ago(1) }
       ]
     };
   }
@@ -530,8 +560,8 @@ const Theme = {
 
 /* ===== Views ===== */
 const HEAD = {
-  student: ['Student Portal', 'My document requests', 'Request records and follow every step.'],
-  registrar: ['Registrar Panel', 'Fulfillment queue', 'Review and process document requests with complete applicant details.'],
+  student: ['Student Portal', 'My Document requests', 'Request records and follow every step.'],
+  registrar: ['Registrar Panel', 'Fulfillment desk', 'Review, approve and track document requests, pickup appointments and releases.'],
   admin: ['Admin', 'Admin dashboard', 'Manage registrar accounts and document request types.']
 };
 
@@ -544,25 +574,55 @@ const Welcome = r => `<section class="welcome">
   <img class="welcome-seal" src="logo.png" alt="" aria-hidden="true">
 </section>`;
 
-const stat = (l, v, ic = 'fileText') => `<div class="card stat">
+const stat = (l, v, ic = 'fileText', status = '') => `<div class="card stat${status ? ` stat--${slug(status)}` : ''}">
   <div class="stat-top"><small>${l}</small><span class="stat-icon">${icon(ic)}</span></div>
   <strong>${v}</strong>
 </div>`;
+
+/* ===== View-only notification previews (visual demo only) ===== */
+const NOTIFICATIONS = {
+  student: [
+    { icon: 'packageCheck', title: 'Document ready for pickup', desc: 'REQ-1003 is ready. Schedule a pickup at the Registrar Releasing Window.', time: 'Just now' },
+    { icon: 'calendar', title: 'Pickup appointment', desc: 'Your slot is confirmed for Fri, Nov 13 · 10:30 AM at Window 1.', time: '2 hours ago' },
+    { icon: 'shieldCheck', title: 'Official warning acknowledged', desc: 'You can now submit document requests from your portal.', time: 'Nov 8' }
+  ],
+  registrar: [
+    { icon: 'inbox', title: 'New request in queue', desc: 'A student submitted a Certificate of Grades request for review.', time: 'Just now' },
+    { icon: 'calendar', title: 'Pickup scheduled', desc: 'A student booked a releasing-window slot for Fri, Nov 13.', time: '1 hour ago' },
+    { icon: 'packageCheck', title: 'Queue update', desc: 'Two requests are ready for pickup and awaiting release.', time: 'Today' }
+  ],
+  admin: [
+    { icon: 'users', title: 'Registrar invitation pending', desc: 'A newly invited registrar has not activated their account yet.', time: 'Just now' },
+    { icon: 'fileText', title: 'Document catalog updated', desc: 'New document types are now available in the request form.', time: '3 hours ago' },
+    { icon: 'shieldCheck', title: 'System notice', desc: 'Scheduled maintenance is simulated for this demo only.', time: 'Yesterday' }
+  ]
+};
+const notifPanel = role => {
+  const items = NOTIFICATIONS[role] || NOTIFICATIONS.student;
+  return `<div class="notif-panel" id="notifPanel" role="region" aria-label="Notifications">
+    <div class="notif-head"><strong>Notifications</strong><span class="notif-tag">View only</span></div>
+    <ul class="notif-list">${items.map(n => `<li class="notif-item">
+      <span class="notif-icon">${icon(n.icon)}</span>
+      <div><b>${esc(n.title)}</b><p>${esc(n.desc)}</p><small>${esc(n.time)}</small></div>
+    </li>`).join('')}</ul>
+    <p class="notif-foot">Preview only — notifications cannot be opened or cleared.</p>
+  </div>`;
+};
 
 const cardHeader = (title, desc = '') => `<div class="card-header">
   <h2 class="card-title">${title}</h2>
   ${desc ? `<p class="card-desc">${desc}</p>` : ''}
 </div>`;
 
-const toolbar = opts => `<div class="toolbar">
+const toolbar = (opts, showFilter = true) => `<div class="toolbar">
   <div class="search"><span class="search-icon">${icon('search')}</span>
     <input type="search" data-search value="${esc(UI.state.q)}" placeholder="Search…" aria-label="Search"></div>
-  <select data-filter class="select-filter" aria-label="Filter by status">
+  ${showFilter ? `<select data-filter class="select-filter" aria-label="Filter by status">
     <option value="">All statuses</option>${opts.map(o => `<option value="${o}"${o === UI.state.status ? ' selected' : ''}>${o}</option>`).join('')}
-  </select>
+  </select>` : ''}
 </div>`;
 
-const tableShell = (heads, opts) => `${toolbar(opts)}<div class="wrap"><table>
+const tableShell = (heads, opts, showFilter = true) => `${toolbar(opts, showFilter)}<div class="wrap"><table>
   <thead><tr>${heads.map(h => `<th scope="col">${h}</th>`).join('')}</tr></thead>
   <tbody id="rows"></tbody></table></div>`;
 
@@ -602,34 +662,18 @@ const Views = {
         <div class="shell hero-grid">
           <div class="hero-copy">
             <span class="hero-badge">${icon('shieldCheck')} Office of the Registrar</span>
-            <h1>Official student documents, <em>requested online.</em></h1>
-            <p class="hero-desc">Order certificates, credentials and diplomas without the campus queue. Track real-time verification and claim your dry-sealed documents at a reserved counter slot.</p>
+            <h1>Official Student Document  <em>Request Portal </em></h1>
+            <p class="hero-desc">A convenient way to request academic documents, monitor application progress, and arrange document pickup through the Office of the Registrar </p>
             <div class="hero-cta">
               <button class="btn btn-primary btn-lg" type="button" data-act="openLogin">${icon('fileText')} Request a document</button>
-              <a class="btn btn-outline btn-lg" href="#documents">${icon('search')} Browse catalog</a>
+              <button class="btn btn-outline btn-lg" type="button" data-act="openLogin">${icon('lock')} Sign in to view status &amp; QR pass</button>
             </div>
             <ul class="hero-trust">
               <li>${icon('checkCircle')} ${total} document types</li>
               <li>${icon('checkCircle')} Real-time status tracking</li>
               <li>${icon('checkCircle')} Scheduled counter pickup</li>
             </ul>
-            <p class="hero-signin">Already have an active request? <button class="link" type="button" data-act="openLogin">Sign in to view status &amp; QR pass</button></p>
-          </div>
-          <div class="hero-panel">
-            <div class="hero-card">
-              <div class="hero-card-head">
-                <div><small>Request</small><strong>REQ-1042</strong></div>
-                ${badge('Ready for Pickup')}
-              </div>
-              <h2>Certificate of Grades</h2>
-              <p class="hero-card-sub">2 copies · Scholarship application</p>
-              <ol class="track">
-                <li class="done"><span>${icon('check')}</span><div><b>Submitted</b><small>Nov 4 · 9:12 AM</small></div></li>
-                <li class="done"><span>${icon('check')}</span><div><b>Verified by Registrar</b><small>Nov 6 · 2:40 PM</small></div></li>
-                <li class="current"><span>${icon('packageCheck')}</span><div><b>Ready for pickup</b><small>Present your QR slip at Window 1</small></div></li>
-              </ol>
-              <div class="hero-slot">${icon('calendar')}<div><b>Fri, Nov 13 · 10:30 AM</b><small>Admin Building · Window 1</small></div></div>
-            </div>
+            <p class="hero-signin">Looking for something else? <a class="link" href="#documents">Browse the catalog</a></p>
           </div>
         </div>
       </section>
@@ -638,13 +682,13 @@ const Views = {
         <div class="shell">
           <div class="section-head">
             <p class="eyebrow">How it works</p>
-            <h2>Simple 3-step process</h2>
+            <h2>Request Your Documents</h2>
             <p>Avoid campus queues with digital evaluation and designated window pickup.</p>
           </div>
           <div class="steps">
             <article class="step"><span class="step-num">1</span><h3>Select document</h3><p>Choose the certification, credential or diploma you need from the catalog.</p></article>
-            <article class="step"><span class="step-num">2</span><h3>Clearance &amp; verification</h3><p>Automated academic record assessment with instant cashier fee calculation.</p></article>
-            <article class="step"><span class="step-num">3</span><h3>Scheduled pickup</h3><p>Reserve a counter time slot and present your QR slip for immediate claim.</p></article>
+            <article class="step"><span class="step-num">2</span><h3>Clearance &amp; verification</h3><p>Complete the online form with the required information. Your request will be reviewed by the Office of the Registrar. </p></article>
+            <article class="step"><span class="step-num">3</span><h3>Scheduled pickup</h3><p>Once approved and ready, choose an available pickup schedule. Present your confirmation or QR code when claiming your document.</p></article>
           </div>
         </div>
       </section>
@@ -653,8 +697,9 @@ const Views = {
         <div class="shell">
           <div class="section-head">
             <p class="eyebrow">Document catalog</p>
-            <h2>Browse available credentials</h2>
-            <p>Processing turnaround times, prescribed fees and prerequisites for every registrar form.</p>
+            <h2>Academic Documents and Certifications 
+</h2>
+            <p>Certifications Browse the documents available through the Office of the Registrar. Check the requirements, processing time, and applicable fees for each document before submitting your request.</p>
           </div>
           <div id="catalogBody">${Views.catalogBody()}</div>
         </div>
@@ -664,7 +709,7 @@ const Views = {
         <div class="shell">
           <div class="foot-grid">
             <div class="foot-brand">
-              <div class="brand"><img class="seal" src="logo.png" alt="PLMun seal"><div><b>PLMun Registrar</b><span>Office of the Registrar</span></div></div>
+              <div class="brand"><img class="seal" src="logo.png" alt="PLMun seal"><div><b>1.	Pamantasan ng Lungsod ng Muntinlupa </b><span>Office of the Registrar</span></div></div>
               <p>Pamantasan ng Lungsod ng Muntinlupa<br>University Road, Poblacion, Muntinlupa City, Philippines</p>
               <p class="foot-note">${icon('shieldCheck')} Compliant with RA 10173 (Data Privacy Act)</p>
             </div>
@@ -706,73 +751,95 @@ const Views = {
     const dark = document.documentElement.dataset.theme === 'dark';
     return `<div class="auth-wrap">
       <aside class="brand-panel"><img class="watermark" src="logo.png" alt="">
-        <div class="brand"><img class="seal" src="logo.png" alt="PLMun seal"><div><b>PLMun</b><span>Pamantasan ng Lungsod ng Muntinlupa</span></div></div>
-        <div class="brand-copy"><p class="eyebrow">Student &amp; Faculty Portal</p><h1>Document Request <em>System</em></h1>
-          <p>Request. Track. Receive. Your records and your privacy, in one clear place.</p>
-          <div class="pills"><span>${icon('lock')} Privacy-first</span><span>${icon('fileText')} ${Store.db.docs.length} document types</span><span>${icon('shieldCheck')} Role-based access</span></div></div>
+       <div class="brand"><img class="seal" src="logo.png" alt="PLMun seal"><div><b>PLMun</b><span>Pamantasan ng Lungsod ng Muntinlupa</span></div></div>
+        <div class="brand-copy"><p class="eyebrow">PLMUN REGISTRAR PORTAL </p><h1>Document Request <em>System</em></h1>
+          <p>Track. Receive. Your records and your privacy, in one clear place.  To this “Submit document requests, track their status, and arrange pickup in one convenient place</p>
+          <div class="pills"></div></div>
         <small>© 2026 Pamantasan ng Lungsod ng Muntinlupa · All rights reserved</small></aside>
       <div class="form-panel">
         <button class="btn btn-ghost btn-sm auth-back" type="button" data-act="home">${icon('arrowLeft')}<span>Home</span></button>
         <button class="btn btn-outline btn-sm fab" data-act="theme" aria-label="Switch to ${dark ? 'light' : 'dark'} mode">${icon(dark ? 'sun' : 'moon')}<span>${dark ? 'Light' : 'Dark'}</span></button>
-        <form class="signin" data-form="login" novalidate>
-          <img class="seal" src="logo.png" alt="PLMun seal"><p class="eyebrow">Document Request System</p>
-          <h2>Welcome back</h2><p class="signin-desc">Sign in with your PLMun portal account to continue.</p>
-          <div class="field"><label for="email">Email</label>
-            <input id="email" name="email" type="email" autocomplete="username" placeholder="name@plmun.edu.ph" required></div>
-          <div class="field"><label for="password">Password</label>
-            <div class="pw"><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required>
-            <button class="btn btn-ghost btn-sm pw-toggle" type="button" data-act="showpw">${icon('eye')}<span>Show</span></button></div></div>
-          <p id="loginErr" class="err" role="alert"></p>
-          <button class="btn btn-primary btn-lg btn-block" type="submit">Sign in ${icon('arrowRight')}</button>
-          <div class="demo"><span class="demo-label">Demo accounts</span>
-            <button class="btn btn-outline btn-sm" type="button" data-act="demo" data-role="student">Student</button>
-            <button class="btn btn-outline btn-sm" type="button" data-act="demo" data-role="registrar">Registrar</button>
-            <button class="btn btn-outline btn-sm" type="button" data-act="demo" data-role="admin">Admin</button></div>
-        </form></div></div>`;
+        ${UI.state.authMode === 'register' ? Views.registerForm() : Views.loginForm()}
+      </div></div>`;
+  },
+  loginForm() {
+    return `<form class="signin" data-form="login" novalidate>
+      <img class="seal" src="logo.png" alt="PLMun seal"><p class="eyebrow">Official Student Document Request & Scheduling System</p>
+      <h2>Welcome back</h2><p class="signin-desc">Sign in with your PLMun portal account to continue.</p>
+      <div class="field"><label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="username" placeholder="name@plmun.edu.ph" required></div>
+      <div class="field"><label for="password">Password</label>
+        <div class="pw"><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required>
+        <button class="btn btn-ghost btn-sm pw-toggle" type="button" data-act="showpw">${icon('eye')}<span>Show</span></button></div></div>
+      <p id="loginErr" class="err" role="alert"></p>
+      <button class="btn btn-primary btn-lg btn-block" type="submit">Sign in ${icon('arrowRight')}</button>
+      <div class="demo"><span class="demo-label">Demo accounts</span>
+        <button class="btn btn-outline btn-sm" type="button" data-act="demo" data-role="student">Student</button>
+        <button class="btn btn-outline btn-sm" type="button" data-act="demo" data-role="registrar">Registrar</button>
+        <button class="btn btn-outline btn-sm" type="button" data-act="demo" data-role="admin">Admin</button></div>
+      <p class="signin-alt">New to the portal? <button class="link" type="button" data-act="showRegister">Create an account</button></p>
+    </form>`;
+  },
+  registerForm() {
+    const opts = PROGRAMS.map(g => `<optgroup label="${esc(g.college)}">${g.programs.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('')}</optgroup>`).join('');
+    return `<form class="signin signin-register" data-form="register" novalidate>
+      <img class="seal" src="logo.png" alt="PLMun seal"><p class="eyebrow">Student Registration</p>
+      <h2>Create your account</h2><p class="signin-desc">Register with your PLMun details to request and track documents.</p>
+      <div class="reg-grid">
+        <div class="field"><label for="regName">Full name</label>
+          <input id="regName" name="fullname" type="text" autocomplete="name" placeholder="Juan Dela Cruz" maxlength="80" required></div>
+        <div class="field"><label for="regSno">Student ID number</label>
+          <input id="regSno" name="sno" type="text" inputmode="numeric" placeholder="2022-00123" maxlength="10" required></div>
+      </div>
+      <div class="field"><label for="regProgram">Academic degree program</label>
+        <select id="regProgram" name="program" required>
+          <option value="" selected disabled>Select your degree program</option>${opts}</select>
+        <p class="field-hint" id="regCollege">Choose your program to see its college.</p></div>
+      <div class="field"><label for="regEmail">PLMun email address</label>
+        <input id="regEmail" name="email" type="email" autocomplete="username" placeholder="name@plmun.edu.ph" required>
+        <p class="field-hint">Use your official @plmun.edu.ph address.</p></div>
+      <div class="field"><label for="regPassword">Password</label>
+        <div class="pw"><input id="regPassword" name="password" type="password" autocomplete="new-password" placeholder="At least 8 characters" required>
+        <button class="btn btn-ghost btn-sm pw-toggle" type="button" data-act="showpw">${icon('eye')}<span>Show</span></button></div></div>
+      <div class="field"><label for="regConfirm">Confirm password</label>
+        <div class="pw"><input id="regConfirm" name="confirm" type="password" autocomplete="new-password" placeholder="Re-enter password" required>
+        <button class="btn btn-ghost btn-sm pw-toggle" type="button" data-act="showpw">${icon('eye')}<span>Show</span></button></div></div>
+      <p id="regErr" class="err" role="alert"></p>
+      <button class="btn btn-primary btn-lg btn-block" type="submit">Create account ${icon('arrowRight')}</button>
+      <p class="signin-alt">Already have an account? <button class="link" type="button" data-act="showLogin">Sign in</button></p>
+    </form>`;
   },
   student(u) {
     const mine = Store.db.requests.filter(r => r.owner === u.id), c = s => mine.filter(r => r.status === s).length;
-    const acked = isAcked(u);
-    return `<section class="card student-profile">
-      <div class="avatar avatar-xl" style="--avatar-hue:${hueOf(u.name)}" aria-hidden="true">${esc(initials(u.name))}</div>
-      <div class="profile-main">
-        <div class="profile-heading"><h2>${esc(u.name)}</h2><span class="badge s-active">Student</span></div>
-        <p class="profile-sub">Student No. ${esc(u.sno)} · ${esc(u.yearLevel)}</p>
-        <div class="profile-program">
-          <span class="profile-program-icon">${icon('graduationCap')}</span>
-          <div><small>Course / Program</small><strong>${esc(u.program)}</strong><span>${esc(collegeOf(u.program))}</span></div>
-        </div>
-      </div>
-      <button class="btn btn-outline profile-edit" type="button" data-act="editProfile">${icon('edit')} Change program</button>
-    </section>
-    <section class="card alert privacy"><span class="alert-icon">${icon('shieldCheck')}</span>
-      <div class="alert-body"><h3 class="alert-title">Official warning &amp; data privacy</h3>
-      <p class="alert-desc">Signed in as ${esc(mask(u.name))} · Student No. ${esc('••••-•••' + u.sno.slice(-2))}.
-      Registrar staff only see your request ID, document type and status.
-      <span class="warn-state ${acked ? 'ok' : 'pending'}">${acked ? `${icon('checkCircle')} Acknowledged ${fmtDate(u.warningAck.at)}` : `${icon('alertCircle')} Warning not yet acknowledged`}</span></p></div>
-      <button class="btn btn-outline btn-sm alert-action" type="button" data-act="openWarning">${icon('shieldCheck')} Review warning</button></section>
-      <div class="stats">${stat('Total requests', mine.length, 'fileText')}${stat('Pending', c('Pending'), 'clock')}
-      ${stat('In progress', c('Processing') + c('Ready for Pickup'), 'loader')}${stat('Released', c('Released'), 'checkCircle')}
+    return `<div class="stats">${stat('Total requests', mine.length, 'fileText')}${stat('Pending', c('Pending'), 'clock', 'Pending')}
+      ${stat('In progress', c('Processing') + c('Ready for Pickup'), 'loader', 'Processing')}${stat('Released', c('Released'), 'checkCircle', 'Released')}
       ${stat('Appointments', mine.filter(r => r.pickup && r.status !== 'Released' && r.status !== 'Rejected').length, 'calendar')}</div>
+      ${Views.protocolCard(u)}
       ${Views.wizard(u)}
       <section class="card">${cardHeader('My requests', 'Track status, appointments and schedule a pickup when your document is ready.')}
-        ${tableShell(['Request ID', 'Tracking Ref', 'Document', 'Copies', 'Date', 'Status', 'Pickup', 'Actions'], [...FLOW, 'Rejected'])}</section>`;
+        ${tableShell(['Request', 'Document', 'Copies', 'Date', 'Status', 'Pickup', 'Actions'], [...FLOW, 'Rejected'])}</section>`;
   },
-  wizard(u) {
+  protocolCard(u) {
     const w = UI.wizardFor(u);
-    const gated = w.step === 1 && !w.ack && !isAcked(u);
-    const waiting = w.step === 4 && (!w.date || !w.time);
-    return `<section class="card wizard-card" id="wizardCard">
-      ${cardHeader('Document request protocol', 'Complete the four-step protocol to request academic credentials and reserve an appointment at the Registrar Releasing Window.')}
+    return `<section class="card protocol-card" id="protocolCard">
+      ${cardHeader('Document request protocol', 'Complete the four-step protocol to request academic credentials. Pickup scheduling opens once the Registrar marks your request as Ready for Pickup.')}
       <ol class="stepper">${WIZ_STEPS.map(s => {
       const cls = s.n === w.step ? 'is-current' : s.n < w.step ? 'is-done' : '';
       return `<li class="step-tab ${cls}"${s.n === w.step ? ' aria-current="step"' : ''}>
           <span class="step-label">${s.label}</span><span class="step-desc">${esc(s.desc)}</span></li>`;
     }).join('')}</ol>
+    </section>`;
+  },
+  wizard(u) {
+    const w = UI.wizardFor(u);
+    const gated = w.step === 1 && !w.ack && !isAcked(u);
+    const step = WIZ_STEPS[w.step - 1];
+    return `<section class="card wizard-card" id="wizardCard">
+      ${cardHeader(`${step.label} · ${step.desc}`, step.hint)}
       <div id="wizardStage">${Views.wizardStage(u, w)}</div>
       <div class="wizard-actions">
         <button class="btn btn-outline" type="button" data-act="wizBack"${w.step === 1 ? ' disabled' : ''}>${icon('arrowLeft')} Back</button>
-        <button class="btn btn-primary" type="button" data-act="wizNext" id="wizNext"${gated || waiting ? ' disabled' : ''}>
+        <button class="btn btn-primary" type="button" data-act="wizNext" id="wizNext"${gated ? ' disabled' : ''}>
           ${w.step === 4 ? `${icon('send')} Submit request` : `Continue ${icon('arrowRight')}`}
         </button>
       </div>
@@ -801,112 +868,233 @@ const Views = {
     </div>`;
 
     if (w.step === 2) return `<div class="wiz-panel">
-      <div class="wiz-grid wiz-grid-2">
-        <div class="field"><label for="wizName">Full name</label><input id="wizName" value="${esc(u.name)}" readonly></div>
-        <div class="field"><label for="wizSno">Student number</label><input id="wizSno" value="${esc(u.sno)}" readonly></div>
+      <div class="wiz-section">
+        <div class="wiz-section-head">
+          <h3>${icon('shieldCheck')} Student identity</h3>
+          <p>These details are locked to your official Registrar record.</p>
+        </div>
+        <div class="wiz-grid wiz-grid-2">
+          <div class="field"><label for="wizName">Full name</label><input id="wizName" value="${esc(u.name)}" readonly></div>
+          <div class="field"><label for="wizSno">Student ID number</label><input id="wizSno" value="${esc(u.sno)}" readonly></div>
+        </div>
       </div>
-      <div class="field"><label for="wizProgram">Course / Program</label>
-        <select id="wizProgram">${PROGRAMS.map(g => `<optgroup label="${esc(g.college)}">${g.programs.map(p => `<option value="${esc(p)}"${p === w.program ? ' selected' : ''}>${esc(p)}</option>`).join('')}</optgroup>`).join('')}</select>
-        <p class="field-hint" id="wizCollege">${esc(collegeOf(w.program))}</p></div>
-      <div class="field"><label for="wizYear">Year level</label>
-        <select id="wizYear">${YEAR_LEVELS.map(y => `<option${y === w.year ? ' selected' : ''}>${esc(y)}</option>`).join('')}</select></div>
-      <p class="form-hint">This academic affiliation is attached to your request and can also be updated from your profile.</p>
+      <div class="wiz-section">
+        <div class="wiz-section-head">
+          <h3>${icon('graduationCap')} Academic &amp; contact details</h3>
+          <p>Confirm your enrolled program and active contact channels.</p>
+        </div>
+        <div class="field"><label for="wizProgram">Course / Program</label>
+          <select id="wizProgram">${PROGRAMS.map(g => `<optgroup label="${esc(g.college)}">${g.programs.map(p => `<option value="${esc(p)}"${p === w.program ? ' selected' : ''}>${esc(p)}</option>`).join('')}</optgroup>`).join('')}</select>
+          <p class="field-hint" id="wizCollege">${esc(collegeOf(w.program))}</p></div>
+        <div class="wiz-grid wiz-grid-2">
+          <div class="field"><label for="wizEmail">Institutional email</label>
+            <input id="wizEmail" type="email" value="${esc(w.email)}" placeholder="name@plmun.edu.ph" autocomplete="email">
+            <p class="field-hint">Used for Registrar updates and account sign-in.</p></div>
+          <div class="field"><label for="wizMobile">Active mobile number</label>
+            <input id="wizMobile" type="tel" value="${esc(w.mobile)}" placeholder="0917 123 4567" autocomplete="tel" inputmode="tel" maxlength="16">
+            <p class="field-hint">Reachable during processing and pickup.</p></div>
+        </div>
+      </div>
+      <div class="wiz-section">
+        <div class="wiz-section-head">
+          <h3>${icon('fileText')} Request details</h3>
+          <p>Tell the Registrar why you need this document.</p>
+        </div>
+        <div class="field"><label for="wizPurpose">Purpose of request</label>
+          <select id="wizPurpose">${PURPOSES.map(p => `<option${p === w.purpose ? ' selected' : ''}>${esc(p)}</option>`).join('')}</select></div>
+      </div>
       <span class="small muted">Step 2 of 4</span>
     </div>`;
 
     if (w.step === 3) {
       const meta = docMeta(w.doc);
+      const rep = w.receiver === 'rep';
       return `<div class="wiz-panel">
-        <div class="field"><label for="wizDoc">Document</label>
-          <select id="wizDoc">${Store.db.docs.map(d => `<option${d === w.doc ? ' selected' : ''}>${esc(d)}</option>`).join('')}</select></div>
-        <div class="wiz-doc-meta">
-          <div><small>Category</small><strong>${esc(meta.cat)}</strong></div>
-          <div><small>Turnaround</small><strong>${esc(meta.days)} work days</strong></div>
-          <div><small>Fee</small><strong>₱${meta.fee}.00 <span>/ ${esc(meta.unit)}</span></strong></div>
+        <div class="wiz-section">
+          <div class="wiz-section-head">
+            <h3>${icon('fileText')} Document &amp; copies</h3>
+            <p>Choose the credential and the number of copies you need.</p>
+          </div>
+          <div class="field"><label for="wizDoc">Document</label>
+            <select id="wizDoc">${Store.db.docs.map(d => `<option${d === w.doc ? ' selected' : ''}>${esc(d)}</option>`).join('')}</select></div>
+          <div class="wiz-doc-meta">
+            <div><small>Category</small><strong>${esc(meta.cat)}</strong></div>
+            <div><small>Turnaround</small><strong>${esc(meta.days)} work days</strong></div>
+            <div><small>Fee</small><strong>₱${meta.fee}.00 <span>/ ${esc(meta.unit)}</span></strong></div>
+          </div>
+          ${w.doc === OTHER_DOC ? `<div class="field"><label for="wizOther">Specify certificate</label><input id="wizOther" maxlength="80" value="${esc(w.other)}" placeholder="e.g. Certificate of Good Moral Character"></div>` : ''}
+          <div class="field"><label for="wizCopies">Number of copies</label><input id="wizCopies" type="number" min="1" max="5" value="${w.copies}"></div>
+          <div class="wiz-estimate">Estimated fee <strong>₱${(meta.fee * w.copies).toFixed(2)}</strong></div>
         </div>
-        <div class="wiz-grid wiz-grid-2">
-          <div class="field"><label for="wizCopies">Copies</label><input id="wizCopies" type="number" min="1" max="5" value="${w.copies}"></div>
-          <div class="field"><label for="wizPurpose">Purpose</label><select id="wizPurpose">${PURPOSES.map(p => `<option${p === w.purpose ? ' selected' : ''}>${esc(p)}</option>`).join('')}</select></div>
+
+        <div class="wiz-section">
+          <div class="wiz-section-head">
+            <h3>${icon('users')} Document retrieval authorization</h3>
+            <p>Tell the Registrar who will claim the document at the Registrar Releasing Window.</p>
+          </div>
+          <div class="wiz-choice" role="radiogroup" aria-label="Who will claim the document?">
+            <label class="wiz-choice-card">
+              <input type="radio" name="wizReceiver" value="self"${rep ? '' : ' checked'}>
+              <span><b>Myself (student)</b><small>I will claim the document in person.</small></span>
+            </label>
+            <label class="wiz-choice-card">
+              <input type="radio" name="wizReceiver" value="rep"${rep ? ' checked' : ''}>
+              <span><b>Authorized representative</b><small>Someone else will claim it on my behalf.</small></span>
+            </label>
+          </div>
+          ${rep ? `<div class="wiz-grid wiz-grid-2">
+            <div class="field"><label for="wizRepName">Representative's full name</label>
+              <input id="wizRepName" maxlength="80" value="${esc(w.repName)}" placeholder="e.g. Maria Dela Cruz" autocomplete="name"></div>
+            <div class="field"><label for="wizRepRelation">Relationship to student</label>
+              <select id="wizRepRelation">${RELATIONSHIPS.map(x => `<option${x === w.repRelation ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
+          </div>
+          <div class="field"><label for="wizRepId">Type of valid ID to be presented</label>
+            <select id="wizRepId">${ID_TYPES.map(x => `<option${x === w.repId ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
+          <label class="check"><input type="checkbox" id="wizRepLetter"${w.repLetter ? ' checked' : ''}>
+            <span><b>Authorization letter ready.</b> I will provide a signed authorization letter, a photocopy of my PLMun Student ID, and the representative's valid government-issued ID at the Registrar Releasing Window.</span></label>` : ''}
+          <div class="wiz-protocol">${icon('shieldCheck')}<div>
+            <b>Claiming protocol at the Registrar Releasing Window</b>
+            <ul>
+              <li>Students claiming in person must present the printed request slip or QR code and their valid PLMun Student ID.</li>
+              <li>Authorized representatives must present a signed authorization letter, a photocopy of the student's valid ID, and their own valid government-issued ID.</li>
+              <li>Claim the document within 90 calendar days; unclaimed documents are subject to Registrar storage disposal.</li>
+            </ul>
+          </div></div>
         </div>
-        ${w.doc === OTHER_DOC ? `<div class="field"><label for="wizOther">Specify certificate</label><input id="wizOther" maxlength="80" value="${esc(w.other)}" placeholder="e.g. Certificate of Good Moral Character"></div>` : ''}
-        <div class="wiz-estimate">Estimated fee <strong>₱${(meta.fee * w.copies).toFixed(2)}</strong></div>
         <span class="small muted">Step 3 of 4</span>
       </div>`;
     }
 
     const meta = docMeta(w.doc);
-    const appointment = w.date
-      ? `${fmtDate(dateFromKey(w.date))}${w.time ? ` · ${timeLabel(w.time)}` : ' · choose a time'}`
-      : 'Choose a date & time';
+    const fee = (meta.fee * w.copies).toFixed(2);
+    const rep = w.receiver === 'rep';
+    const pay = paymentMeta(w.payment);
+    const summaryGroup = (ic, title, rows) => `<section class="wiz-summary-group">
+      <h3 class="wiz-summary-title">${icon(ic)} ${title}</h3>
+      <dl class="wiz-summary-list">${rows.map(([label, value]) => `<div class="wiz-summary-row"><dt>${label}</dt><dd>${value}</dd></div>`).join('')}</dl>
+    </section>`;
     return `<div class="wiz-panel">
-      <div class="wiz-review">
-        <div><small>Document</small><strong>${esc(w.doc)}</strong></div>
-        <div><small>Copies</small><strong>${w.copies}</strong></div>
-        <div><small>Estimated fee</small><strong>₱${(meta.fee * w.copies).toFixed(2)}</strong></div>
-        <div><small>Program</small><strong>${esc(w.program)}</strong></div>
-        <div><small>Purpose</small><strong>${esc(w.purpose || '—')}</strong></div>
-        <div><small>Appointment</small><strong>${esc(appointment)}</strong></div>
+      <div class="wiz-section">
+        <div class="wiz-section-head">
+          <h3>${icon('clipboardCheck')} Review your request</h3>
+          <p>Confirm every detail below. Submitted requests are final and can no longer be modified.</p>
+        </div>
+        <div class="wiz-summary">
+          ${summaryGroup('graduationCap', 'Student details', [
+            ['Full name', esc(u.name)],
+            ['Student ID', `<span class="mono">${esc(u.sno)}</span>`],
+            ['Program', esc(w.program)],
+            ['Institutional email', `<span class="mono">${esc(w.email || '—')}</span>`],
+            ['Mobile number', esc(w.mobile || '—')]
+          ])}
+          ${summaryGroup('fileText', 'Request details', [
+            ['Document', esc(w.doc)],
+            ['Copies', `${w.copies} ${w.copies === 1 ? 'copy' : 'copies'}`],
+            ['Purpose', esc(w.purpose || '—')],
+            ['Estimated fee', `<strong class="receipt-highlight">₱${fee}</strong>`]
+          ])}
+          ${summaryGroup('users', 'Retrieval authorization', [
+            ['Authorized claimant', rep ? `${esc(w.repName)} · ${esc(w.repRelation)}` : 'Myself (student)'],
+            ['Claiming location', 'Registrar Releasing Window 1'],
+            ...(rep ? [
+              ['Representative ID', esc(w.repId)],
+              ['Authorization letter', `${icon('checkCircle')} Ready to present`]
+            ] : [
+              ['ID to present', 'PLMun Student ID']
+            ])
+          ])}
+          ${summaryGroup('creditCard', 'Payment', [
+            ['Payment method', pay.full],
+            ['Amount due', `<strong class="receipt-highlight">₱${fee}</strong>`],
+            ['Payment timing', w.payment === 'online' ? 'After submission' : 'Before claiming']
+          ])}
+        </div>
       </div>
-      ${Views.wizardCalendar(w)}
+
+      <div class="wiz-section">
+        <div class="wiz-section-head">
+          <h3>${icon('creditCard')} Payment method</h3>
+          <p>Choose how you will settle the assessed fee. The Cashier verifies payment before the document is released.</p>
+        </div>
+        <div class="wiz-choice" role="radiogroup" aria-label="Payment method">
+          ${PAYMENT_METHODS.map(p => `<label class="wiz-choice-card">
+            <input type="radio" name="wizPayment" value="${p.key}"${w.payment === p.key ? ' checked' : ''}>
+            <span><b>${p.label}</b><small>${p.desc}</small></span>
+          </label>`).join('')}
+        </div>
+        <div class="wiz-pay-note">${icon('info')}<span>${w.payment === 'online'
+          ? 'After submitting, pay through the online channel and keep your payment reference. Online payments are verified by the Cashier before release.'
+          : "Pay the assessed fee at the University Cashier's Office. Bring your printed request slip or QR code when claiming at the Registrar Releasing Window."}</span></div>
+      </div>
+
+      <div class="wiz-window">${icon('calendar')}<div><b>Pickup scheduling</b><span>Choose a date and time at the Registrar Releasing Window once the Registrar marks your request as Ready for Pickup. A Schedule button will then appear on your request.</span></div></div>
       <div class="wiz-window">${icon('mapPin')}<div><b>Registrar Releasing Window</b><span>Ground Floor, Administration Building · Each slot is ${PICKUP.stepMin} minutes, up to ${PICKUP.capacity} students.</span></div></div>
       <span class="small muted">Step 4 of 4</span>
     </div>`;
   },
-  wizardCalendar(w) {
-    let view = w.view || Cal.minMonth();
-    if (view < Cal.minMonth()) view = Cal.minMonth();
-    if (view > Cal.maxMonth()) view = Cal.maxMonth();
-    w.view = view;
-    const todayK = Cal.todayKey();
-    const atMin = view <= Cal.minMonth(), atMax = view >= Cal.maxMonth();
-    const days = Cal.monthDays(view).map(c => {
-      if (!c.key) return '<span class="cal-day is-empty"></span>';
-      const enabled = Cal.isBookableDate(c.date) && Cal.hasOpen(c.key);
-      const cls = ['cal-day'];
-      if (c.key === w.date) cls.push('is-selected');
-      if (c.key === todayK) cls.push('is-today');
-      const label = c.date.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-      return `<button type="button" class="${cls.join(' ')}" data-act="wizPickDate" data-date="${c.key}" aria-label="${esc(label)}"${c.key === w.date ? ' aria-pressed="true"' : ''}${enabled ? '' : ' disabled'}>${c.date.getDate()}${enabled ? '<span class="cal-dot"></span>' : ''}</button>`;
-    }).join('');
-    const slots = w.date ? Cal.slots(w.date) : [];
-    const openSlots = slots.filter(x => !x.disabled).length;
-    const slotHtml = !w.date
-      ? '<p class="slots-hint">Select an available date to see pickup times.</p>'
-      : openSlots === 0
-        ? '<p class="slots-hint">No times left on this date. Try another day.</p>'
-        : `<div class="slot-grid">${slots.map(x => `<button type="button" class="slot${x.time === w.time ? ' is-selected' : ''}" data-act="wizPickSlot" data-time="${x.time}" aria-pressed="${x.time === w.time}"${x.disabled ? ' disabled' : ''}>
-            <span>${x.label}</span><small>${x.left === 0 ? 'Full' : x.past ? 'Unavailable' : `${x.left} left`}</small>
-          </button>`).join('')}</div>`;
-    return `<div class="sched wiz-sched">
-      <div class="calendar">
-        <div class="calendar-head">
-          <button type="button" class="btn btn-ghost btn-icon btn-sm" data-act="wizCalPrev" aria-label="Previous month"${atMin ? ' disabled' : ''}>${icon('chevronLeft')}</button>
-          <strong>${view.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' })}</strong>
-          <button type="button" class="btn btn-ghost btn-icon btn-sm" data-act="wizCalNext" aria-label="Next month"${atMax ? ' disabled' : ''}>${icon('chevronRight')}</button>
-        </div>
-        <div class="calendar-grid cal-dow">${['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => `<span>${d}</span>`).join('')}</div>
-        <div class="calendar-grid">${days}</div>
-      </div>
-      <div class="slots">
-        <p class="slots-title">${w.date ? fmtDate(dateFromKey(w.date)) : 'Available times'}</p>
-        ${slotHtml}
-        ${w.date ? `<p class="slots-note">Each slot is ${PICKUP.stepMin} minutes, up to ${PICKUP.capacity} students.</p>` : ''}
-      </div>
+  regTabs() {
+    const all = Store.db.requests;
+    const count = t => t.statuses ? all.filter(r => t.statuses.includes(r.status)).length : all.length;
+    return `<div class="queue-tabs" role="tablist" aria-label="Request queue">
+      ${REG_TABS.map(t => `<button class="queue-tab${UI.state.regTab === t.key ? ' is-active' : ''}" type="button" role="tab" aria-selected="${UI.state.regTab === t.key}" data-act="regTab" data-tab="${t.key}">
+        <span>${t.label}</span> <span class="queue-tab-count">${count(t)}</span>
+      </button>`).join('')}
     </div>`;
+  },
+  pickupAppointments() {
+    const rank = { 'Ready for Pickup': 0, 'Released': 1 };
+    const list = Store.db.requests
+      .filter(r => r.pickup && Object.prototype.hasOwnProperty.call(rank, r.status))
+      .sort((a, b) => (rank[a.status] - rank[b.status]) || `${a.pickup.date} ${a.pickup.time || ''}`.localeCompare(`${b.pickup.date} ${b.pickup.time || ''}`));
+    const body = list.length ? `<div class="wrap"><table>
+      <thead><tr><th scope="col">Request</th><th scope="col">Appointment</th><th scope="col">Student</th><th scope="col">Document</th><th scope="col">Claimant</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
+      <tbody>${list.map(r => {
+        const student = Store.db.users.find(x => x.id === r.owner);
+        const claimant = r.receiver === 'rep' && r.claimant ? `${r.claimant.name} · ${r.claimant.relation}` : 'Student (in person)';
+        return `<tr>
+          <td data-label="Request"><div class="req-cell"><span class="mono req-link">${esc(r.id)}</span><span class="trk-code">${esc(reqTracking(r))}</span></div></td>
+          <td data-label="Appointment"><span class="pickup-when">${icon('calendar')} ${fmtPickup(r.pickup)}</span></td>
+          <td data-label="Student"><div class="user-cell"><strong>${esc(student ? student.name : 'Unknown')}</strong><small class="muted mono block">${esc(student ? student.sno : '')}</small></div></td>
+          <td data-label="Document">${esc(r.type)}</td>
+          <td data-label="Claimant">${esc(claimant)}</td>
+          <td data-label="Status"><span class="status-dot s-${slug(r.status)}"></span>${badge(r.status)}</td>
+          <td class="table-actions" data-label="Actions"><div class="action-group">
+            <button class="btn btn-outline btn-sm" type="button" data-act="viewReqOverview" data-id="${esc(r.id)}" title="View request details">${icon('eye')} View</button>
+            ${r.status === 'Ready for Pickup'
+              ? `<button class="btn btn-primary btn-sm" type="button" data-act="markReleased" data-id="${esc(r.id)}" title="Mark this document as released">${icon('checkCircle')} Release</button>`
+              : `<button class="btn btn-outline btn-sm" type="button" data-act="viewReceipt" data-id="${esc(r.id)}" title="Print official receipt">${icon('printer')} Receipt</button>`}
+          </div></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>` : `<div class="empty-state queue-empty">
+      <span class="empty-icon">${icon('calendar')}</span>
+      <span>No pickup appointments yet.</span>
+      <span class="empty-hint">Slots appear here once a student books a ready-for-pickup request.</span>
+    </div>`;
+    return `<section class="card" id="pickupAppointments">
+      ${cardHeader('Pickup appointments', 'Confirmed releasing-window slots for approved requests, including the authorized claimant.')}
+      ${body}
+    </section>`;
   },
   registrar() {
     const all = Store.db.requests, c = s => all.filter(r => r.status === s).length;
-    return `<div class="stats">${stat('Total queue', all.length, 'inbox')}${stat('Pending', c('Pending'), 'clock')}
-      ${stat('Processing', c('Processing'), 'loader')}${stat('Ready for Pickup', c('Ready for Pickup'), 'packageCheck')}
-      ${stat('Released', c('Released'), 'checkCircle')}</div>
-      <section class="card">${cardHeader('Request queue', 'Click any request to view complete applicant details and fulfillment overview.')}
-        ${tableShell(['Request ID', 'Tracking Ref', 'Student', 'Document', 'Date', 'Status', 'Pickup', 'Actions'], [...FLOW, 'Rejected'])}</section>`;
+    const appts = all.filter(r => r.pickup && r.status === 'Ready for Pickup').length;
+    return `<div class="stats">
+      ${stat('Pending review', c('Pending'), 'clock', 'Pending')}${stat('Approved', c('Processing'), 'loader', 'Processing')}
+      ${stat('Ready for pickup', c('Ready for Pickup'), 'packageCheck', 'Ready for Pickup')}${stat('Released', c('Released'), 'checkCircle', 'Released')}
+      ${stat('Pickup appointments', appts, 'calendar')}</div>
+      <section class="card" id="registrarQueue">
+        ${cardHeader('Request queue', 'Review submitted applications, approve qualified requests, and move documents through fulfillment.')}
+        ${Views.regTabs()}
+        ${tableShell(['Request', 'Student', 'Document', 'Date', 'Status', 'Pickup', 'Actions'], [], false)}
+      </section>
+      ${Views.pickupAppointments()}`;
   },
   admin() {
     const regs = Store.db.users.filter(u => u.role === 'registrar'), c = s => regs.filter(u => u.status === s).length;
     const docs = Store.db.docs, used = d => Store.db.requests.filter(r => r.type === d).length;
-    return `<div class="stats">${stat('Registrars', regs.length, 'users')}${stat('Active', c('active'), 'checkCircle')}
-      ${stat('Invited', c('invited'), 'mail')}${stat('Disabled', c('disabled'), 'ban')}
+    return `<div class="stats">${stat('Registrars', regs.length, 'users')}${stat('Active', c('active'), 'checkCircle', 'active')}
+      ${stat('Invited', c('invited'), 'mail', 'invited')}${stat('Disabled', c('disabled'), 'ban', 'disabled')}
       ${stat('Document types', docs.length, 'fileText')}${stat('Total requests', Store.db.requests.length, 'inbox')}</div>
       <div class="cols">
         <form class="card" data-form="invite">
@@ -927,10 +1115,10 @@ const Views = {
         <div class="wrap"><table>
           <thead><tr><th scope="col">Document type</th><th scope="col">Category</th><th scope="col">Requests</th><th scope="col">Actions</th></tr></thead>
           <tbody>${docs.length ? docs.map(d => `<tr>
-            <td>${esc(d)}</td>
-            <td>${esc(docMeta(d).cat)}</td>
-            <td>${used(d)}</td>
-            <td><button class="btn btn-danger btn-sm" type="button" data-act="deleteDoc" data-doc="${esc(d)}">${icon('trash')} Delete</button></td>
+            <td data-label="Document type">${esc(d)}</td>
+            <td data-label="Category">${esc(docMeta(d).cat)}</td>
+            <td data-label="Requests">${used(d)}</td>
+            <td data-label="Actions"><button class="btn btn-danger btn-sm" type="button" data-act="deleteDoc" data-doc="${esc(d)}">${icon('trash')} Delete</button></td>
           </tr>`).join('') : `<tr><td class="empty" colspan="4"><div class="empty-state"><span class="empty-icon">${icon('inbox')}</span><span>No document types configured.</span></div></td></tr>`}</tbody>
         </table></div>
       </section>`;
@@ -941,6 +1129,10 @@ const Views = {
     let list = u.role === 'student' ? Store.db.requests.filter(r => r.owner === u.id)
       : u.role === 'registrar' ? Store.db.requests
         : Store.db.users.filter(x => x.role === 'registrar');
+    if (u.role === 'registrar') {
+      const tab = REG_TABS.find(x => x.key === UI.state.regTab) || REG_TABS[0];
+      if (tab.statuses) list = list.filter(r => tab.statuses.includes(r.status));
+    }
     list = list.filter(r => {
       if (status && r.status !== status) return false;
       if (!t) return true;
@@ -949,50 +1141,61 @@ const Views = {
         .some(v => v && String(v).toLowerCase().includes(t));
     });
     if (!list.length) {
-      const cols = u.role === 'admin' ? 4 : 8;
+      const cols = u.role === 'admin' ? 4 : 7;
+      const regEmpty = {
+        pending: ['No submitted requests waiting for review.', 'New student submissions will appear here.'],
+        approved: ['No approved requests in processing.', 'Approve a submitted request to move it here.'],
+        ready: ['No documents are ready for pickup.', 'Mark an approved request ready once it is prepared.'],
+        released: ['No documents have been released yet.', 'Released documents are tracked here for records.'],
+        rejected: ['No rejected requests.', 'Rejected submissions will appear here.'],
+        all: ['No requests in the queue yet.', 'New student submissions will appear here.']
+      };
+      const [msg, hint] = u.role === 'registrar' && !t ? (regEmpty[UI.state.regTab] || ['Nothing matches yet.', 'Try a different search or filter.']) : ['Nothing matches yet.', 'Try a different search or filter.'];
       return `<tr><td class="empty" colspan="${cols}"><div class="empty-state">
-        <span class="empty-icon">${icon('inbox')}</span><span>Nothing matches yet.</span>
-        <span class="empty-hint">Try a different search or filter.</span></div></td></tr>`;
+        <span class="empty-icon">${icon('inbox')}</span><span>${msg}</span>
+        <span class="empty-hint">${hint}</span></div></td></tr>`;
     }
     return list.map(r => {
       if (u.role === 'student') {
         const trk = reqTracking(r);
         return `<tr>
-          <td class="mono">${esc(r.id)}</td>
-          <td class="mono"><span class="trk-code">${esc(trk)}</span></td>
-          <td>${esc(r.type)}</td>
-          <td>${r.copies || 1}</td>
-          <td>${fmtDate(r.date)}</td>
-          <td>${badge(r.status)}</td>
-          <td>${pickupCell(r)}</td>
-          <td><button class="btn btn-outline btn-sm" type="button" data-act="viewReceipt" data-id="${esc(r.id)}" title="Print Official Receipt with QR Code">${icon('printer')} Print Receipt</button></td>
+          <td data-label="Request"><div class="req-cell"><span class="mono">${esc(r.id)}</span><span class="trk-code">${esc(trk)}</span></div></td>
+          <td data-label="Document">${esc(r.type)}</td>
+          <td data-label="Copies">${r.copies || 1}</td>
+          <td data-label="Date">${fmtDate(r.date)}</td>
+          <td data-label="Status"><span class="status-dot s-${slug(r.status)}"></span>${badge(r.status)}</td>
+          <td data-label="Pickup">${pickupCell(r)}</td>
+          <td data-label="Actions"><button class="btn btn-outline btn-sm" type="button" data-act="viewReceipt" data-id="${esc(r.id)}" title="Print Official Receipt with QR Code">${icon('printer')} Print Receipt</button></td>
         </tr>`;
       }
       if (u.role === 'registrar') {
         const student = Store.db.users.find(x => x.id === r.owner);
         const trk = reqTracking(r);
-        const i = FLOW.indexOf(r.status), next = i > -1 && i < FLOW.length - 1 ? FLOW[i + 1] : null;
         return `<tr class="clickable-row" data-act="viewReqOverview" data-id="${esc(r.id)}" tabindex="0" role="button" aria-label="View request details for ${esc(r.id)}">
-          <td class="mono"><span class="req-link">${esc(r.id)}</span></td>
-          <td class="mono"><span class="trk-code">${esc(trk)}</span></td>
-          <td>
+          <td data-label="Request"><div class="req-cell"><span class="mono req-link">${esc(r.id)}</span><span class="trk-code">${esc(trk)}</span></div></td>
+          <td data-label="Student">
             <div class="user-cell">
               <strong>${esc(student ? student.name : 'Unknown')}</strong>
               <small class="muted mono block">${esc(student ? student.sno : '')}</small>
             </div>
           </td>
-          <td>${esc(r.type)}</td>
-          <td>${fmtDate(r.date)}</td>
-          <td>${badge(r.status)}</td>
-          <td>${r.pickup ? `<span class="pickup-when">${icon('calendar')} ${fmtPickup(r.pickup)}</span>` : '<span class="muted">—</span>'}</td>
-          <td class="table-actions">
-            <button class="btn btn-outline btn-sm" type="button" data-act="viewReqOverview" data-id="${esc(r.id)}" title="View overview details">${icon('eye')} View</button>
-            ${next ? `<button class="btn btn-primary btn-sm" type="button" data-act="advance" data-id="${esc(r.id)}">Mark ${esc(next)}</button>` : ''}
-            ${['Pending', 'Processing'].includes(r.status) ? `<button class="btn btn-danger btn-sm" type="button" data-act="reject" data-id="${esc(r.id)}">${icon('x')} Reject</button>` : ''}
+          <td data-label="Document">${esc(r.type)}</td>
+          <td data-label="Date">${fmtDate(r.date)}</td>
+          <td data-label="Status"><span class="status-dot s-${slug(r.status)}"></span>${badge(r.status)}</td>
+          <td data-label="Pickup">${r.pickup ? `<span class="pickup-when">${icon('calendar')} ${fmtPickup(r.pickup)}</span>` : '<span class="muted">—</span>'}</td>
+          <td class="table-actions" data-label="Actions">
+            <div class="action-group">
+              <button class="btn btn-outline btn-sm" type="button" data-act="viewReqOverview" data-id="${esc(r.id)}" title="View complete request details">${icon('eye')} ${r.status === 'Pending' ? 'Review' : 'View'}</button>
+              ${r.status === 'Pending' ? `<button class="btn btn-primary btn-sm" type="button" data-act="approve" data-id="${esc(r.id)}" title="Approve this request">${icon('check')} Approve</button>` : ''}
+              ${r.status === 'Processing' ? `<button class="btn btn-primary btn-sm" type="button" data-act="markReady" data-id="${esc(r.id)}" title="Mark this document ready for pickup">${icon('packageCheck')} Mark ready</button>` : ''}
+              ${r.status === 'Ready for Pickup' ? `<button class="btn btn-primary btn-sm" type="button" data-act="markReleased" data-id="${esc(r.id)}" title="Mark this document as released">${icon('checkCircle')} Release</button>` : ''}
+              ${['Pending', 'Processing'].includes(r.status) ? `<button class="btn btn-danger btn-sm" type="button" data-act="reject" data-id="${esc(r.id)}" title="Reject this request">${icon('x')} Reject</button>` : ''}
+              ${r.status === 'Released' ? `<button class="btn btn-outline btn-sm" type="button" data-act="viewReceipt" data-id="${esc(r.id)}" title="Print official receipt">${icon('printer')} Receipt</button>` : ''}
+            </div>
           </td>
         </tr>`;
       }
-      return `<tr><td>${esc(r.name)}</td><td>${esc(r.email)}</td><td>${badge(r.status)}</td><td>
+      return `<tr><td data-label="Name">${esc(r.name)}</td><td data-label="Email">${esc(r.email)}</td><td data-label="Status"><span class="status-dot s-${slug(r.status)}"></span>${badge(r.status)}</td><td data-label="Actions">
         ${r.status === 'invited' ? `<button class="btn btn-outline btn-sm" data-act="invite" data-id="${r.id}">${icon('mail')} View invite</button>` : ''}
         ${r.status === 'active' ? `<button class="btn btn-danger btn-sm" data-act="toggle" data-id="${r.id}">${icon('ban')} Disable</button>` : ''}
         ${r.status === 'disabled' ? `<button class="btn btn-outline btn-sm" data-act="toggle" data-id="${r.id}">${icon('check')} Enable</button>` : ''}</td></tr>`;
@@ -1002,11 +1205,11 @@ const Views = {
 
 /* ===== UI controller ===== */
 const UI = {
-  state: { q: '', status: '', view: 'home', cat: 'All', preselect: '' },
+  state: { q: '', status: '', regTab: 'pending', view: 'home', cat: 'All', preselect: '', authMode: 'login', notifOpen: false },
   schedule: null,
   wizard: null,
   reset() {
-    this.state = { q: '', status: '', view: 'home', cat: 'All', preselect: this.state.preselect };
+    this.state = { q: '', status: '', regTab: 'pending', view: 'home', cat: 'All', preselect: this.state.preselect, authMode: 'login', notifOpen: false };
     this.schedule = null;
     this.wizard = null;
     $('#mail').open && $('#mail').close();
@@ -1015,6 +1218,7 @@ const UI = {
     $('#warning').open && $('#warning').close();
     $('#receipt') && $('#receipt').open && $('#receipt').close();
     $('#reqDetails') && $('#reqDetails').open && $('#reqDetails').close();
+    $('#submitConfirm') && $('#submitConfirm').open && $('#submitConfirm').close();
     this.render();
   },
   render() {
@@ -1032,20 +1236,23 @@ const UI = {
   paintCatalog() { const b = $('#catalogBody'); if (b) b.innerHTML = Views.catalogBody(); },
   wizardFor(u) {
     if (!this.wizard || this.wizard.owner !== u.id) {
-      const today = Cal.today();
       this.wizard = {
         owner: u.id,
         step: 1,
         ack: isAcked(u),
         program: PROGRAM_LIST.includes(u.program) ? u.program : DEFAULT_PROGRAM,
-        year: YEAR_LEVELS.includes(u.yearLevel) ? u.yearLevel : '1st Year',
+        email: u.email || '',
+        mobile: u.mobile || '',
         doc: (this.state.preselect && Store.db.docs.includes(this.state.preselect)) ? this.state.preselect : Store.db.docs[0],
         copies: 1,
         purpose: PURPOSES[0],
+        payment: 'cashier',
         other: '',
-        view: new Date(today.getFullYear(), today.getMonth(), 1),
-        date: '',
-        time: ''
+        receiver: 'self',
+        repName: '',
+        repRelation: RELATIONSHIPS[0],
+        repId: ID_TYPES[0],
+        repLetter: false
       };
     }
     return this.wizard;
@@ -1053,6 +1260,8 @@ const UI = {
   renderWizard() {
     const u = Auth.user;
     if (!u || u.role !== 'student') return;
+    const protocol = $('#protocolCard');
+    if (protocol) protocol.outerHTML = Views.protocolCard(u);
     const card = $('#wizardCard');
     if (card) card.outerHTML = Views.wizard(u);
   },
@@ -1110,7 +1319,7 @@ const UI = {
     const u = Auth.user, dark = document.documentElement.dataset.theme === 'dark';
     const role = { student: 'Student', registrar: 'Registrar', admin: 'Admin' };
     if (!u) {
-      $('#nav').innerHTML = `<div class="brand"><img class="seal" src="logo.png" alt="PLMun seal"><div><b>PLMun Registrar</b><span>Document Request System</span></div></div>
+      $('#nav').innerHTML = `<div class="brand"><img class="seal" src="logo.png" alt="PLMun seal"><div><b>Pamantasan ng Lungsod ng Muntinlupa </b><span>Official Student Document Request & Scheduling System</span></div></div>
         <div class="actions">
           <nav class="nav-links" aria-label="Page sections">
             <a href="#process">Process</a><a href="#documents">Documents</a><a href="#contact">Contact</a>
@@ -1120,9 +1329,14 @@ const UI = {
         </div>`;
       return;
     }
-    $('#nav').innerHTML = `<div class="brand"><img class="seal" src="logo.png" alt="PLMun seal"><div><b>PLMun Portal</b><span>Document Request System</span></div></div>
+    const notifOpen = !!UI.state.notifOpen;
+    const notifCount = (NOTIFICATIONS[u.role] || NOTIFICATIONS.student).length;
+    $('#nav').innerHTML = `<div class="brand"><img class="seal" src="logo.png" alt="PLMun seal"><div><b>PLMun Portal</b><span>Official Student Document Request & Scheduling System</span></div></div>
       <div class="actions"><span class="badge s-role">${role[u.role]}</span>
-        <button class="btn btn-ghost btn-icon" type="button" aria-label="Notifications" title="Notifications">${icon('bell')}</button>
+        <div class="notif">
+          <button class="btn btn-ghost btn-icon notif-btn" type="button" data-act="notifToggle" aria-label="Notifications (${notifCount})" aria-expanded="${notifOpen}"${notifOpen ? ' aria-controls="notifPanel"' : ''} title="Notifications">${icon('bell')}<span class="notif-count" aria-hidden="true">${notifCount}</span></button>
+          ${notifOpen ? notifPanel(u.role) : ''}
+        </div>
         <button class="btn btn-ghost btn-icon" data-act="theme" aria-label="Switch to ${dark ? 'light' : 'dark'} mode">${icon(dark ? 'sun' : 'moon')}</button>
         ${u.role === 'student'
         ? `<button class="nav-user nav-user-btn" type="button" data-act="editProfile" title="Edit student profile">
@@ -1319,11 +1533,19 @@ const Receipt = {
           <div class="receipt-claim-box">
             <div class="receipt-claim-row">
               <span class="claim-label">Current Status:</span>
-              <span>${badge(r.status)}</span>
+              <span><span class="status-dot s-${slug(r.status)}"></span>${badge(r.status)}</span>
             </div>
             <div class="receipt-claim-row">
               <span class="claim-label">Pickup Schedule:</span>
               <strong>${r.pickup ? `${icon('calendar')} ${fmtPickup(r.pickup)}` : '<span class="muted">No appointment reserved yet</span>'}</strong>
+            </div>
+            <div class="receipt-claim-row">
+              <span class="claim-label">Authorized Claimant:</span>
+              <span>${r.receiver === 'rep' && r.claimant ? `${esc(r.claimant.name)} (${esc(r.claimant.relation)})` : 'Student (in person)'}</span>
+            </div>
+            <div class="receipt-claim-row">
+              <span class="claim-label">Payment Method:</span>
+              <span>${esc(paymentMeta(r.payment).full)}</span>
             </div>
             <div class="receipt-claim-row">
               <span class="claim-label">Claiming Location:</span>
@@ -1392,7 +1614,7 @@ const ReqDetails = {
             <div><small>Request ID</small><strong class="mono">${esc(r.id)}</strong></div>
             <div><small>Tracking Ref</small><strong class="mono receipt-highlight">${esc(trk)}</strong></div>
             <div><small>Date Filed</small><strong>${fmtDate(r.date)}</strong></div>
-            <div><small>Current Status</small><div>${badge(r.status)}</div></div>
+            <div><small>Current Status</small><div><span class="status-dot s-${slug(r.status)}"></span>${badge(r.status)}</div></div>
           </div>
 
           <div class="overview-card">
@@ -1411,7 +1633,7 @@ const ReqDetails = {
               <div><small>Degree Program</small><strong>${esc(prog)}</strong></div>
               <div><small>College / Department</small><span>${esc(college)}</span></div>
               <div><small>Warning Acknowledged</small><span>${isAcked(student) ? `${icon('checkCircle')} Acknowledged (${fmtDate(student.warningAck.at)})` : '<span class="muted">Not yet acknowledged</span>'}</span></div>
-              <div><small>Account Status</small><span>${badge(student.status || 'active')}</span></div>
+              <div><small>Account Status</small><span><span class="status-dot s-${slug(student.status || 'active')}"></span>${badge(student.status || 'active')}</span></div>
             </div>
           </div>
 
@@ -1423,6 +1645,7 @@ const ReqDetails = {
               <div><small>Quantity</small><strong>${copies} ${copies === 1 ? 'copy' : 'copies'}</strong></div>
               <div><small>Unit Fee</small><span>₱${meta.fee}.00 / ${esc(meta.unit)}</span></div>
               <div><small>Total Assessed Fee</small><strong class="receipt-highlight">₱${totalFee}</strong></div>
+              <div><small>Payment Method</small><span>${esc(paymentMeta(r.payment).full)}</span></div>
               <div><small>Est. Turnaround</small><span>${esc(meta.days)} work days</span></div>
             </div>
             <div class="overview-purpose-box">
@@ -1438,6 +1661,14 @@ const ReqDetails = {
                 <small>Appointment Slot</small>
                 <strong>${r.pickup ? `${icon('calendar')} ${fmtPickup(r.pickup)}` : '<span class="muted">No appointment reserved yet</span>'}</strong>
               </div>
+              <div>
+                <small>Authorized Claimant</small>
+                <strong>${r.receiver === 'rep' && r.claimant ? esc(r.claimant.name) : 'Myself (student)'}</strong>
+              </div>
+              ${r.receiver === 'rep' && r.claimant ? `
+              <div><small>Relationship</small><span>${esc(r.claimant.relation)}</span></div>
+              <div><small>Representative ID</small><span>${esc(r.claimant.idType)}</span></div>
+              <div><small>Authorization Letter</small><span>${icon('checkCircle')} To be presented at the window</span></div>` : ''}
               <div>
                 <small>Releasing Window</small>
                 <span>Registrar Releasing Window 1</span>
@@ -1458,18 +1689,56 @@ const ReqDetails = {
 
     const footer = $('#reqDetailsFooter');
     if (footer) {
-      const i = FLOW.indexOf(r.status);
-      const next = i > -1 && i < FLOW.length - 1 ? FLOW[i + 1] : null;
+      const primary = r.status === 'Pending'
+        ? `<button class="btn btn-primary" type="button" data-act="modalApprove" data-id="${esc(r.id)}">${icon('check')} Approve request</button>`
+        : r.status === 'Processing'
+          ? `<button class="btn btn-primary" type="button" data-act="modalReady" data-id="${esc(r.id)}">${icon('packageCheck')} Mark ready for pickup</button>`
+          : r.status === 'Ready for Pickup'
+            ? `<button class="btn btn-primary" type="button" data-act="modalRelease" data-id="${esc(r.id)}">${icon('checkCircle')} Mark released</button>`
+            : '';
       footer.innerHTML = `
         <button class="btn btn-outline" type="button" data-act="close">Close</button>
         <button class="btn btn-outline" type="button" data-act="viewReceipt" data-id="${esc(r.id)}">${icon('printer')} Official Receipt</button>
         ${['Pending', 'Processing'].includes(r.status) ? `<button class="btn btn-danger" type="button" data-act="modalReject" data-id="${esc(r.id)}">${icon('x')} Reject</button>` : ''}
-        ${next ? `<button class="btn btn-primary" type="button" data-act="modalAdvance" data-id="${esc(r.id)}">Mark ${esc(next)} ${icon('arrowRight')}</button>` : ''}
+        ${primary}
       `;
     }
 
     const dlg = $('#reqDetails');
     if (dlg && !dlg.open) dlg.showModal();
+  }
+};
+
+/* ===== Final submission confirmation ===== */
+const SubmitConfirm = {
+  show(u, w) {
+    const meta = docMeta(w.doc);
+    const fee = (meta.fee * w.copies).toFixed(2);
+    const pay = paymentMeta(w.payment);
+    const claimant = w.receiver === 'rep' ? `${w.repName} · ${w.repRelation}` : 'Myself (student)';
+    const body = $('#submitConfirmBody');
+    if (body) body.innerHTML = `
+      <div class="confirm-warning">${icon('alertCircle')}<div>
+        <b>This request will be final.</b>
+        <span>Once submitted, you will no longer be able to modify the details of this request. Review the summary below before confirming.</span>
+      </div></div>
+      <div class="confirm-summary">
+        <div><small>Document</small><strong>${esc(w.doc)}</strong></div>
+        <div><small>Copies</small><strong>${w.copies}</strong></div>
+        <div><small>Estimated fee</small><strong>₱${fee}</strong></div>
+        <div><small>Payment method</small><strong>${pay.full}</strong></div>
+        <div><small>Authorized claimant</small><strong>${esc(claimant)}</strong></div>
+        <div><small>Student</small><strong>${esc(u.name)} · <span class="mono">${esc(u.sno)}</span></strong></div>
+      </div>`;
+    const dlg = $('#submitConfirm');
+    if (dlg && !dlg.open) dlg.showModal();
+  },
+  confirm() {
+    const u = Auth.user, w = UI.wizard;
+    const dlg = $('#submitConfirm');
+    if (dlg && dlg.open) dlg.close();
+    if (!u || u.role !== 'student' || !w) return;
+    Actions.wizSubmit(u, w);
   }
 };
 
@@ -1480,9 +1749,28 @@ const Actions = {
     const id = el.dataset.id || el.closest('[data-id]')?.dataset.id;
     if (id) ReqDetails.show(id);
   },
+  regTab(el) {
+    UI.state.regTab = el.dataset.tab || 'pending';
+    UI.render();
+  },
   modalAdvance(el) {
     const id = el.dataset.id;
     Actions.advance(el);
+    if (id) ReqDetails.show(id);
+  },
+  modalApprove(el) {
+    const id = el.dataset.id;
+    Actions.approve(el);
+    if (id) ReqDetails.show(id);
+  },
+  modalReady(el) {
+    const id = el.dataset.id;
+    Actions.markReady(el);
+    if (id) ReqDetails.show(id);
+  },
+  modalRelease(el) {
+    const id = el.dataset.id;
+    Actions.markReleased(el);
     if (id) ReqDetails.show(id);
   },
   modalReject(el) {
@@ -1497,11 +1785,31 @@ const Actions = {
   printReceipt() {
     Receipt.print();
   },
+  confirmSubmit() {
+    SubmitConfirm.confirm();
+  },
   openLogin() {
+    UI.state.authMode = 'login';
     UI.state.view = 'auth';
     UI.render();
     const email = $('#email');
     if (email) email.focus();
+  },
+  showRegister() {
+    UI.state.authMode = 'register';
+    UI.state.view = 'auth';
+    UI.render();
+    const name = $('#regName');
+    if (name) name.focus();
+    window.scrollTo(0, 0);
+  },
+  showLogin() {
+    UI.state.authMode = 'login';
+    UI.state.view = 'auth';
+    UI.render();
+    const email = $('#email');
+    if (email) email.focus();
+    window.scrollTo(0, 0);
   },
   home() {
     if (Auth.user) return;
@@ -1540,43 +1848,6 @@ const Actions = {
     $('#warning').close();
     Actions.logout();
   },
-  wizCalPrev() {
-    const u = Auth.user;
-    if (!u || u.role !== 'student') return;
-    const w = UI.wizardFor(u);
-    const prev = new Date(w.view.getFullYear(), w.view.getMonth() - 1, 1);
-    if (prev < Cal.minMonth()) return;
-    w.view = prev;
-    UI.renderWizard();
-  },
-  wizCalNext() {
-    const u = Auth.user;
-    if (!u || u.role !== 'student') return;
-    const w = UI.wizardFor(u);
-    const next = new Date(w.view.getFullYear(), w.view.getMonth() + 1, 1);
-    if (next > Cal.maxMonth()) return;
-    w.view = next;
-    UI.renderWizard();
-  },
-  wizPickDate(el) {
-    const u = Auth.user;
-    if (!u || u.role !== 'student') return;
-    const w = UI.wizardFor(u);
-    if (!Cal.hasOpen(el.dataset.date)) return;
-    w.date = el.dataset.date;
-    w.time = '';
-    UI.renderWizard();
-  },
-  wizPickSlot(el) {
-    const u = Auth.user;
-    if (!u || u.role !== 'student') return;
-    const w = UI.wizardFor(u);
-    if (!w.date) return;
-    const slot = Cal.slots(w.date).find(x => x.time === el.dataset.time && !x.disabled);
-    if (!slot) return;
-    w.time = el.dataset.time;
-    UI.renderWizard();
-  },
   wizBack() {
     const u = Auth.user;
     if (!u || u.role !== 'student') return;
@@ -1599,53 +1870,64 @@ const Actions = {
     }
     if (w.step === 2) {
       w.program = $('#wizProgram').value;
-      w.year = $('#wizYear').value;
+      w.email = $('#wizEmail').value.trim().toLowerCase();
+      w.mobile = $('#wizMobile').value.trim();
+      w.purpose = $('#wizPurpose').value;
       if (!PROGRAM_LIST.includes(w.program)) return toast('Select a valid course / program.', true);
-      if (!YEAR_LEVELS.includes(w.year)) return toast('Select a valid year level.', true);
+      if (!/^[^\s@]+@plmun\.edu\.ph$/i.test(w.email)) return toast('Use your official @plmun.edu.ph email address.', true);
+      if (Store.db.users.some(x => x.id !== u.id && x.email.toLowerCase() === w.email))
+        return toast('That institutional email is already linked to another account.', true);
+      const mobile = normalizeMobile(w.mobile);
+      if (!mobile) return toast('Enter a valid active mobile number (e.g. 0917 123 4567).', true);
+      w.mobile = formatMobile(mobile);
+      if (!PURPOSES.includes(w.purpose)) return toast('Select the purpose of your request.', true);
     }
     if (w.step === 3) {
       w.doc = $('#wizDoc').value;
       w.copies = Math.min(5, Math.max(1, parseInt($('#wizCopies').value, 10) || 1));
-      w.purpose = $('#wizPurpose').value.trim();
       w.other = $('#wizOther') ? $('#wizOther').value.trim() : '';
       if (!Store.db.docs.includes(w.doc)) return toast('Select a document from the catalog.', true);
-      if (!w.purpose) return toast('Enter the purpose of your request.', true);
       if (w.doc === OTHER_DOC && !w.other) return toast('Please specify the certificate you need.', true);
-      if (w.date && !Cal.isBookableDate(dateFromKey(w.date))) { w.date = ''; w.time = ''; }
-      else if (w.date && w.time && !Cal.slots(w.date).some(x => x.time === w.time && !x.disabled)) w.time = '';
+      if (w.receiver === 'rep') {
+        w.repName = $('#wizRepName').value.trim().replace(/\s+/g, ' ');
+        w.repRelation = $('#wizRepRelation').value;
+        w.repId = $('#wizRepId').value;
+        w.repLetter = $('#wizRepLetter').checked;
+        if (w.repName.length < 3) return toast("Enter the authorized representative's full name.", true);
+        if (!RELATIONSHIPS.includes(w.repRelation)) return toast("Select the representative's relationship to you.", true);
+        if (!ID_TYPES.includes(w.repId)) return toast("Select the representative's valid ID type.", true);
+        if (!w.repLetter) return toast('Confirm that a signed authorization letter will be presented.', true);
+      }
     }
-    if (w.step === 4) return Actions.wizSubmit(u, w);
+    if (w.step === 4) {
+      const chosen = document.querySelector('input[name="wizPayment"]:checked');
+      if (chosen) w.payment = chosen.value;
+      if (!PAYMENT_METHODS.some(p => p.key === w.payment)) return toast('Select a payment method to continue.', true);
+      return SubmitConfirm.show(u, w);
+    }
     w.step += 1;
     UI.renderWizard();
   },
   wizSubmit(u, w) {
-    if (!w.date) return toast('Choose a pickup date.', true);
-    if (!Cal.isBookableDate(dateFromKey(w.date))) {
-      w.date = ''; w.time = ''; UI.renderWizard();
-      return toast('Pickups are available Monday to Friday only.', true);
-    }
-    if (!w.time) return toast('Choose a pickup time.', true);
-    const slot = Cal.slots(w.date).find(x => x.time === w.time && !x.disabled);
-    if (!slot) {
-      w.time = '';
-      UI.renderWizard();
-      return toast('That time slot is no longer available. Pick another.', true);
-    }
     u.program = w.program;
-    u.yearLevel = w.year;
+    u.email = w.email;
+    u.mobile = w.mobile;
     if (!isAcked(u)) u.warningAck = { at: new Date().toISOString(), version: WARNING_VERSION };
     const purpose = w.doc === OTHER_DOC && w.other ? `${w.purpose} — ${w.other}` : w.purpose;
+    const claimant = w.receiver === 'rep'
+      ? { name: w.repName, relation: w.repRelation, idType: w.repId, letter: !!w.repLetter }
+      : null;
     const id = `REQ-${Store.db.seq++}`;
     const trackingCode = `PLM-TRK-${new Date().getFullYear()}-${id.replace('REQ-', '')}`;
     Store.db.requests.unshift({
       id, trackingCode, owner: u.id, type: w.doc, purpose, copies: w.copies, program: u.program,
-      status: 'Pending', date: new Date().toISOString(),
-      pickup: { date: w.date, time: w.time }
+      receiver: w.receiver, claimant, payment: paymentMeta(w.payment).key,
+      status: 'Pending', date: new Date().toISOString()
     });
     Store.save();
     UI.wizard = null;
     UI.render();
-    toast(`Request ${id} (Tracking Ref: ${trackingCode}) submitted. Appointment reserved for ${fmtDate(dateFromKey(w.date))} at ${timeLabel(w.time)}.`);
+    toast(`Request ${id} (Tracking Ref: ${trackingCode}) submitted. You can schedule a pickup once it is marked Ready for Pickup.`);
   },
   editProfile() {
     const u = Auth.user;
@@ -1665,12 +1947,19 @@ const Actions = {
     toast('Profile updated. Your requests will use this academic affiliation.');
   },
   showpw(el) {
-    const p = $('#password'), s = p.type === 'password';
+    const box = el.closest('.pw'), p = box ? box.querySelector('input') : $('#password');
+    if (!p) return;
+    const s = p.type === 'password';
     p.type = s ? 'text' : 'password';
     el.innerHTML = s ? `${icon('eyeOff')}<span>Hide</span>` : `${icon('eye')}<span>Show</span>`;
   },
   close(el) { el.closest('dialog').close(); },
   theme() { Theme.toggle(); },
+  notifToggle() {
+    if (!Auth.user) return;
+    UI.state.notifOpen = !UI.state.notifOpen;
+    UI.nav();
+  },
   logout() { Auth.logout(); UI.reset(); toast('Signed out safely.'); },
   demo(el) {
     const m = { student: ['student@plmun.edu.ph', 'student123'], registrar: ['maria.registrar@gmail.com', 'registrar123'], admin: ['admin@plmun.edu.ph', 'admin123'] }[el.dataset.role];
@@ -1736,6 +2025,27 @@ const Actions = {
     if (i < 0 || i === FLOW.length - 1) return;
     r.status = FLOW[i + 1]; Store.save(); UI.render(); toast(`${r.id} is now ${r.status}.`);
   },
+  approve(el) {
+    if (!guard('request:advance')) return;
+    const r = findReq(el.dataset.id);
+    if (!r || r.status !== 'Pending') return toast('Only submitted requests can be approved.', true);
+    r.status = 'Processing'; Store.save(); UI.render();
+    toast(`${r.id} approved and moved to processing.`);
+  },
+  markReady(el) {
+    if (!guard('request:advance')) return;
+    const r = findReq(el.dataset.id);
+    if (!r || r.status !== 'Processing') return toast('Only approved requests can be marked ready.', true);
+    r.status = 'Ready for Pickup'; Store.save(); UI.render();
+    toast(`${r.id} is now ready for pickup.`);
+  },
+  markReleased(el) {
+    if (!guard('request:advance')) return;
+    const r = findReq(el.dataset.id);
+    if (!r || r.status !== 'Ready for Pickup') return toast('Only ready-for-pickup requests can be released.', true);
+    r.status = 'Released'; Store.save(); UI.render();
+    toast(`${r.id} marked as released.`);
+  },
   reject(el) {
     if (!guard('request:advance')) return;
     const r = findReq(el.dataset.id); r.status = 'Rejected'; Store.save(); UI.render(); toast(`${r.id} rejected.`);
@@ -1790,6 +2100,36 @@ const Forms = {
     UI.state.preselect = '';
     toast(`Welcome, ${Auth.user.role === 'student' ? mask(Auth.user.name) : Auth.user.name}!`);
   },
+  register(f) {
+    const d = Object.fromEntries(new FormData(f));
+    const name = String(d.fullname || '').trim().replace(/\s+/g, ' ');
+    const digits = String(d.sno || '').replace(/\D/g, '');
+    const sno = digits.length === 9 ? `${digits.slice(0, 4)}-${digits.slice(4)}` : String(d.sno || '').trim();
+    const program = String(d.program || '');
+    const email = String(d.email || '').trim().toLowerCase();
+    const pw = String(d.password || ''), confirm = String(d.confirm || '');
+    const fail = msg => { const el = $('#regErr'); if (el) el.textContent = msg; };
+
+    if (name.length < 3) return fail('Enter your full name.');
+    if (!/^\d{4}-\d{5}$/.test(sno)) return fail('Enter a valid student ID number (e.g. 2022-00123).');
+    if (!PROGRAM_LIST.includes(program)) return fail('Choose your academic degree program.');
+    if (!/^[^\s@]+@plmun\.edu\.ph$/i.test(email)) return fail('Use your PLMun email address ending in @plmun.edu.ph.');
+    if (pw.length < 8) return fail('Password must be at least 8 characters.');
+    if (pw !== confirm) return fail('Passwords do not match.');
+    if (Store.db.users.some(u => u.email.toLowerCase() === email)) return fail('An account with this email already exists.');
+    if (Store.db.users.some(u => (u.sno || '') === sno)) return fail('An account with this student ID already exists.');
+
+    const u = {
+      id: 'u' + Date.now(), role: 'student', name, email, pw, status: 'active',
+      sno, program, yearLevel: '1st Year'
+    };
+    Store.db.users.push(u); Store.save();
+    Auth.user = u; sessionStorage.setItem('plmun-sid', u.id);
+    f.reset();
+    UI.reset();
+    UI.state.preselect = '';
+    toast(`Account created. Welcome, ${mask(u.name)}!`);
+  },
   invite(f) {
     if (!guard('registrar:manage')) return;
     const d = Object.fromEntries(new FormData(f)), name = d.fullname.trim(), email = d.gmail.trim().toLowerCase();
@@ -1835,13 +2175,37 @@ const Forms = {
 
 /* ===== Event delegation & boot ===== */
 document.addEventListener('click', e => { const el = e.target.closest('[data-act]'); if (el && Actions[el.dataset.act]) Actions[el.dataset.act](el); });
+document.addEventListener('click', e => {
+  if (UI.state.notifOpen && !e.target.closest('.notif')) { UI.state.notifOpen = false; UI.nav(); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && UI.state.notifOpen) { UI.state.notifOpen = false; UI.nav(); }
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  if (e.target.closest('button, a, input, select, textarea')) return;
+  const row = e.target.closest('.clickable-row[data-act]');
+  if (row && Actions[row.dataset.act]) { e.preventDefault(); Actions[row.dataset.act](row); }
+});
 document.addEventListener('submit', e => { const f = e.target.closest('[data-form]'); if (f) { e.preventDefault(); Forms[f.dataset.form](f); } });
-document.addEventListener('input', e => { if (e.target.matches('[data-search]')) { UI.state.q = e.target.value; UI.paintRows(); } });
+document.addEventListener('input', e => {
+  if (e.target.matches('[data-search]')) { UI.state.q = e.target.value; UI.paintRows(); }
+  const w = UI.wizard;
+  if (!w) return;
+  if (e.target.id === 'wizRepName') w.repName = e.target.value;
+  if (e.target.id === 'wizOther') w.other = e.target.value;
+});
 document.addEventListener('change', e => {
   if (e.target.matches('[data-filter]')) { UI.state.status = e.target.value; UI.paintRows(); }
   if (e.target.id === 'program') {
     const hint = $('#collegeHint');
     if (hint) hint.textContent = collegeOf(e.target.value);
+  }
+  if (e.target.id === 'regProgram') {
+    const hint = $('#regCollege');
+    if (hint) hint.textContent = e.target.value ? collegeOf(e.target.value) : 'Choose your program to see its college.';
+  }
+  if (e.target.id === 'regSno') {
+    const digits = e.target.value.replace(/\D/g, '');
+    if (digits.length === 9) e.target.value = `${digits.slice(0, 4)}-${digits.slice(4)}`;
   }
   if (e.target.id === 'warnAck') {
     const btn = $('#warnAgree');
@@ -1857,10 +2221,36 @@ document.addEventListener('change', e => {
     const hint = $('#wizCollege');
     if (hint) hint.textContent = collegeOf(e.target.value);
   }
+  if (e.target.id === 'wizMobile') {
+    const formatted = formatMobile(e.target.value);
+    if (formatted) e.target.value = formatted;
+  }
+  if (e.target.name === 'wizPayment') {
+    const w = UI.wizard;
+    if (!w) return;
+    w.payment = e.target.value;
+    UI.renderWizard();
+  }
+  if (e.target.name === 'wizReceiver') {
+    const w = UI.wizard;
+    if (!w) return;
+    if ($('#wizRepName')) w.repName = $('#wizRepName').value.trim();
+    if ($('#wizRepRelation')) w.repRelation = $('#wizRepRelation').value;
+    if ($('#wizRepId')) w.repId = $('#wizRepId').value;
+    if ($('#wizRepLetter')) w.repLetter = $('#wizRepLetter').checked;
+    w.receiver = e.target.value;
+    UI.renderWizard();
+  }
+  if (e.target.id === 'wizRepRelation' || e.target.id === 'wizRepId' || e.target.id === 'wizRepLetter') {
+    const w = UI.wizard;
+    if (!w) return;
+    if (e.target.id === 'wizRepRelation') w.repRelation = e.target.value;
+    if (e.target.id === 'wizRepId') w.repId = e.target.value;
+    if (e.target.id === 'wizRepLetter') w.repLetter = e.target.checked;
+  }
   if (['wizDoc', 'wizCopies'].includes(e.target.id)) {
     const w = UI.wizard;
     if (!w) return;
-    if ($('#wizPurpose')) w.purpose = $('#wizPurpose').value;
     if ($('#wizOther')) w.other = $('#wizOther').value;
     if (e.target.id === 'wizDoc') w.doc = e.target.value;
     if (e.target.id === 'wizCopies') w.copies = Math.min(5, Math.max(1, parseInt(e.target.value, 10) || 1));
